@@ -1,0 +1,13 @@
+# Geheimnisse gehören nie ins Repo — Stripe- und Neon-Zugänge in die Netlify-UI
+.env
+.env.*
+!.env.example
+
+node_modules/
+dist/
+.netlify/
+
+# Windows/macOS-Müll
+Thumbs.db
+desktop.ini
+.DS_Store
