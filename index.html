@@ -15,6 +15,11 @@
 
     --stage-h: 100svh;
 
+    /* Hoehe der festen Leiste. Startwert fuer den Fall ohne JS; resize() setzt
+       den gemessenen Wert. Verlauf, Shop-Abstand und Sternenfeld haengen alle
+       an dieser einen Zahl - vorher standen dafuer 110, 118 und 90 nebeneinander. */
+    --nav-h: 118px;
+
     /* Bühnenlicht hinter der Sequenz. 0 = aus, schwarzer Grund wie in der
        Sternen-Vorschau. Zurück auf .55 holt den violetten Wash wieder. */
     --wash: 0;
@@ -39,6 +44,10 @@
 
   * { box-sizing: border-box; }
 
+  /* Kein scroll-padding-top: jeder Abschnitt bringt oben selbst genug Abstand
+     mit, um unter der festen Leiste hervorzukommen (siehe .shop). Beides
+     zusammen zaehlte den Versatz doppelt. Ein kuenftiger Abschnitt ohne
+     eigenen Abstand braucht ein scroll-margin-top. */
   html { scroll-behavior: auto; }
 
   body {
@@ -51,8 +60,13 @@
 
   /* ---------- Intro ---------- */
 
-  /* Höhe des Spacers = wie weit man scrollt, um die Sequenz durchzuspielen */
-  .intro { height: 520vh; position: relative; }
+  /* Höhe des Spacers = wie weit man scrollt, um die Sequenz durchzuspielen.
+     360 statt 520: fuenf volle Wischer auf dem Handy sind zu viel Weg bis zum
+     ersten Artikel. Eine Zahl, kein Umbau.
+     svh statt vh: die Buehne ist 100svh. Mit vh (= grosser Viewport) waere der
+     Scrollweg auf dem Handy rund 17 % laenger als am Desktop, weil lvh dort
+     etwa 12 % ueber svh liegt. */
+  .intro { height: 360svh; position: relative; }
 
   .stage {
     position: sticky;
@@ -78,67 +92,37 @@
     pointer-events: none;
   }
 
-  /* Sternenfeld. Liegt unter allem außer dem Grund — das Video deckt es ab,
-     Sterne verschwinden also hinter der Karte und tauchen am Rand wieder auf.
-     Erscheint erst, wenn das Video seine Endgröße erreicht hat. */
+  /* Sternenfeld: der Hintergrund des Shops, deckt dessen ganze Box ab.
+     Erst war das sticky mit fester Fensterhoehe. Gemessen war das falsch: der
+     Shop liess nur 88 px Scrollspielraum, ein sticky Element ohne Spielraum
+     klebt nicht, und durch das padding-top begann das Canvas 309 px zu tief -
+     oben blieb ein sternenloser Streifen.
+     ponytail: der Puffer ist so hoch wie der Shop. Bei drei Artikeln ist das
+     unkritisch; wird der Shop mehrere Bildschirme lang, wieder auf ein
+     fensterhohes Canvas mit eigener Scrollverrechnung umbauen. */
   .starfield {
     position: absolute;
     inset: 0;
     z-index: 0;
+    display: block;
     width: 100%;
     height: 100%;
     opacity: 0;
     pointer-events: none;
   }
+  /* Der Inhalt muss positioniert sein, sonst malt das Canvas darueber:
+     innerhalb eines Stapelkontexts liegen positionierte Elemente mit z-index 0
+     ueber dem Text nicht positionierter Bloecke. */
+  .shop > :not(.starfield) { position: relative; z-index: 1; }
 
-  /* Außerhalb der Videobox ist das Canvas durchsichtig — die Sterne dahinter
-     scheinen also drumherum durch. */
+  /* Liegt vor dem Sternenfeld und hinter dem Schriftzug. Die Deckkraft setzt
+     die Schleife: das Video blendet ab, statt zur Karte zu werden. */
   .seq {
     position: relative;
     z-index: 2;
     display: block;
     width: 100%;
     height: 100%;
-  }
-
-  /* Schriftzug über dem Video — liegt vor der Videokarte, aber unter der
-     Menüleiste. Erscheint erst, wenn das Video geschrumpft ist.
-     pointer-events: none, damit Klicks weiter durchgehen. */
-  .hero {
-    position: absolute;
-    inset: 0;
-    z-index: 3;
-    display: grid;
-    place-items: center;
-    text-align: center;
-    pointer-events: none;
-    opacity: 0;
-  }
-  /* Nur fürs Entwickeln: Taste t blendet den Schriftzug weg, damit man das
-     Video und die Sterne dahinter unverdeckt beurteilen kann. */
-  .hero.off { display: none; }
-  .hero-line {
-    font-family: "Metal Mania", "Helvetica Neue", sans-serif;
-    /* Nur der Startwert und der Fallback ohne JS. Die echte Größe setzt resize()
-       nach der Breite der Videokarte — siehe HERO_VS_CARD. */
-    font-size: clamp(3rem, 17vw, 15rem);
-    /* Metal Mania hat nur einen Schnitt. 800 würde der Browser fälschen und die
-       Zeichnung der Schrift verschmieren — deshalb 400. */
-    font-weight: 400;
-    /* Metal Mania hat Zacken, die über die Zeichenbreite hinausragen — ohne
-       Laufweite stoßen U und T aneinander. Das negative margin-right nimmt den
-       Abstand hinter dem letzten Zeichen wieder raus, sonst sitzt das Wort
-       um eine halbe Laufweite zu weit links. */
-    letter-spacing: .14em;
-    margin-right: -.14em;
-    line-height: .85;
-    text-transform: uppercase;
-    white-space: nowrap;
-    /* In die Breite gezogen, Höhe bleibt. Statischer Transform, also rastert
-       der Browser scharf nach — kein will-change hier, das würde die Ebene
-       einfrieren und die Schrift weich machen. */
-    transform: scaleX(1.3);
-    transform-origin: center;
   }
 
   /* Standbild, solange die Sequenz lädt — nie eine leere Seite */
@@ -154,7 +138,7 @@
 
   .hint {
     position: absolute;
-    left: 50%; bottom: 3vh;
+    left: 50%; bottom: 3svh;
     transform: translateX(-50%);
     font-size: .75rem;
     letter-spacing: .18em;
@@ -165,70 +149,95 @@
 
   /* ---------- Menüleiste ---------- */
 
-  /* Erscheint erst, wenn das Video auf Kartengröße geschrumpft ist.
-     ponytail: sitzt in der Bühne, scrollt also mit ihr weg. Soll sie über der
-     ganzen Seite kleben, wandert sie in den <body> und wird position: fixed. */
+  /* Nach meinhardtaxer.com: kein Balken, keine Kerbe. Die Navigation steht
+     nackt auf dem Grund, Wortmarke links, gruppierte Spalten rechts, alles
+     klein geschrieben und eng laufend statt versal und gesperrt.
+     Fest verankert, ab dem ersten Pixel sichtbar. */
   .navbar {
-    position: absolute;
+    position: fixed;
     top: 0; left: 0; right: 0;
-    z-index: 5;
-    background: #fff;
-    color: #030303;
-    padding: 23px clamp(12px, 1.4vw, 24px) 22px;
-    font-family: var(--font-nav);
-    font-size: 13px;
-    letter-spacing: .04em;
-    text-transform: uppercase;
-    opacity: 0;
-    pointer-events: none;
-    will-change: transform, opacity;
-  }
-
-  /* Die Linie mit der Kerbe: zwei mitwachsende Striche, dazwischen ein SVG
-     fester Breite. Dadurch bleibt der Winkel der Schräge auf jeder Bildbreite
-     gleich — anders als bei einem gestreckten SVG. */
-  /* Die Kerbe hängt über die Linie hinaus, ohne die Zeile darunter zu schieben */
-  .rule { display: flex; align-items: flex-start; margin-bottom: -45px; }
-  .rule i { flex: 1; border-top: 1px solid currentColor; }
-  .rule svg { display: block; flex: none; }
-
-  .navrow {
+    z-index: 100;
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
-    height: 52px;
+    gap: clamp(16px, 4vw, 64px);
+    padding: 26px clamp(16px, 2.2vw, 34px) 0;
+    color: #D9D9D9;                    /* wie die Referenz: nicht Reinweiß */
+    pointer-events: none;              /* der Verlauf faengt sonst Klicks ab */
   }
-  .navrow ul {
-    display: flex;
-    gap: clamp(16px, 3vw, 44px);
-    margin: 0; padding: 0;
-    list-style: none;
+  .navbar a { pointer-events: auto; }
+
+  /* Den Verlauf hat die Referenz nicht — sie braucht ihn auch nicht, weil dort
+     meist Schwarz unter der Leiste liegt. Bei uns laeuft ein Video darunter.
+     Ueber alle 176 Frames gemessen: OHNE Verlauf faellt der Kontrast auf 1,00,
+     die Navigation waere stellenweise unsichtbar.
+     Die Staerke ist gerechnet, nicht geschaetzt: Schrift rgb(217) auf einem
+     reinweissen Pixel haelt 4,5:1 erst ab 63 % Schwaerzung. Deshalb bleibt der
+     Verlauf bis 60 % seiner Hoehe bei rund .70 und faellt erst darunter ab.
+     Das Plateau muss unter den tiefsten Link reichen: bei einem Abfall ab 44 %
+     lag 'warenkorb' schon im duenner werdenden Teil, und genau dort fielen
+     noch 3 Frames durch.
+     Nach der Korrektur: 0 von 176 Frames unter 4,5:1. */
+  .navbar::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    /* Die Stopps haengen an --nav-h, nicht an Prozenten: die Leiste ist auf
+       320 px 138 px hoch und bricht um, auf dem Desktop ist sie 118 px flach.
+       Mit festen Prozenten sass die unterste Linkzeile auf 320 px im
+       auslaufenden Teil des Verlaufs — dort fielen 16 von 88 Frames durch. */
+    height: calc(var(--nav-h) + 110px);
+    background: linear-gradient(to bottom,
+      rgb(0 0 0 / .74) 0,
+      rgb(0 0 0 / .70) var(--nav-h),
+      rgb(0 0 0 / .22) calc(var(--nav-h) + 70px),
+      transparent 100%);
+    pointer-events: none;
+    z-index: -1;
   }
-  .navrow a {
+
+  .wordmark {
+    font-family: "Metal Mania", var(--font-nav);
+    font-size: clamp(24px, 2.1vw, 34px);
+    line-height: 1;
+    font-weight: 400;
     color: inherit;
     text-decoration: none;
     white-space: nowrap;
   }
-  .navrow a:hover { opacity: .55; }
-  .navrow .bag { width: 17px; height: 17px; display: block; }
 
-  /* Der Schriftzug sitzt in der Kerbe. Gleiche Schrift wie der große über dem
-     Video — es ist dieselbe Wortmarke. Die Navigationspunkte drumherum bleiben
-     in var(--font-nav). Zurück auf Platzhalter: font-family-Zeile löschen. */
-  .wordmark {
-    position: absolute;
-    left: 50%; top: 26px;
-    transform: translateX(-50%);
-    font-family: "Metal Mania", var(--font-nav);
-    font-size: 30px;
-    letter-spacing: 0;
-    text-transform: none;
-    font-weight: 400;
+  .navcols { display: flex; gap: clamp(18px, 3.2vw, 60px); }
+  .navcol  { display: flex; flex-direction: column; }
+
+  /* Rubrik und Links unterscheiden sich nur in der Groesse, nicht in Farbe oder
+     Schnitt — genau wie in der Referenz (11 px gegen 16 px, beide 400). */
+  /* Leichte Spanne statt fester px: 15 px wirken auf 2560 verloren. Nach oben
+     eng begrenzt, damit die Leiste Bedienelement bleibt und nicht zu Inhalt wird. */
+  .navlabel { font-size: clamp(11px, .62vw, 13px); opacity: .62; margin-bottom: 9px; }
+  .navbar a:not(.wordmark) { font-size: clamp(14px, .85vw, 18px); line-height: 1.42; }
+
+  .navbar :where(.navlabel, a:not(.wordmark)) {
+    font-family: var(--font-nav);
+    letter-spacing: -.01em;            /* eng, nicht gesperrt */
+    text-transform: none;              /* klein geschrieben */
   }
+  .navbar a { color: inherit; text-decoration: none; }
+  .navbar a:not(.wordmark):hover { opacity: .6; }
+  .cart { margin-top: 6px; }
 
-  @media (max-width: 720px) {
-    .navrow ul.right li:not(:last-child) { display: none; }
-    .navrow ul.left li:nth-child(n+3) { display: none; }
+  /* Handy: drei Spalten passen nicht auf 320 px. Die Rubriken fallen weg, die
+     Links stehen in einer Zeile — mehr traegt die Breite nicht, und ein
+     Aufklappmenue waere neue Mechanik fuer drei Handvoll Links. */
+  /* Auch nach Hoehe, nicht nur nach Breite: bei 844x390 im Querformat greift
+     eine reine Breitenabfrage nicht, und die dreispaltige Leiste frisst dort
+     118 von 390 px - fast ein Drittel des Bildschirms. */
+  @media (max-width: 700px), (max-height: 500px) {
+    .navbar { padding-top: 18px; gap: 12px; }
+    .navlabel { display: none; }
+    .navcol  { flex-direction: row; gap: 14px; }
+    .navcols { gap: 14px; flex-wrap: wrap; justify-content: flex-end; }
+    .navbar a:not(.wordmark) { font-size: clamp(13px, 3.4vw, 15px); }
+    .cart { margin-top: 0; }
   }
 
   /* ---------- Shop ---------- */
@@ -237,7 +246,10 @@
     position: relative;
     z-index: 2;
     min-height: 100svh;
-    padding: clamp(3rem, 10vh, 8rem) clamp(1.25rem, 5vw, 5rem);
+    /* Oben zusaetzlich die Leistenhoehe, sonst laeuft die Ueberschrift darunter. */
+    padding: calc(var(--nav-h) + clamp(2rem, 6svh, 5rem))
+             clamp(1.25rem, 5vw, 5rem)
+             clamp(3rem, 10svh, 8rem);
     background: var(--ground);
     /* Startwert ohne JS: vollständig sichtbar. Verstecken darf nur JS. */
     opacity: 1;
@@ -250,7 +262,7 @@
     letter-spacing: -.03em;
     text-transform: uppercase;
   }
-  .shop p { color: var(--text-muted); max-width: 48ch; line-height: 1.6; margin: 0 0 clamp(1rem, 3vh, 2.5rem); }
+  .shop p { color: var(--text-muted); max-width: 48ch; line-height: 1.6; margin: 0 0 clamp(1rem, 3svh, 2.5rem); }
 
   .grid {
     display: grid;
@@ -258,11 +270,13 @@
     grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
     max-width: 1200px;
   }
+  /* Deckend, nicht durchscheinend: mit dem Sternenfeld dahinter wuerden sonst
+     Sterne durch die Produktkacheln ziehen. */
   .card {
     border: 1px solid color-mix(in srgb, var(--violet-lift) 25%, transparent);
     border-radius: 4px;
     padding: 1.25rem;
-    background: color-mix(in srgb, var(--violet) 8%, transparent);
+    background: color-mix(in srgb, var(--violet) 8%, var(--ground));
   }
   .card .ph {
     aspect-ratio: 4/5;
@@ -301,48 +315,45 @@
 </head>
 <body>
 
+<!-- Steht ab dem ersten Pixel und bleibt stehen. Deshalb braucht die Seite
+     keine Vorschaltseite: die Identität ist sofort da, das Video ist
+     Kopfbereich statt Tor. -->
+<header class="navbar" id="navbar">
+  <a class="wordmark" href="#top">Rutger</a>
+  <!-- ponytail: alle Ziele ausser dem Shop sind Platzhalter und zeigen auf
+       sich selbst. Sobald die Seitenstruktur steht, bekommen sie echte Ziele. -->
+  <nav class="navcols">
+    <div class="navcol">
+      <span class="navlabel">shop</span>
+      <a href="#shop">alle artikel</a>
+      <a href="#shop">kategorien</a>
+      <a href="#shop">drops</a>
+    </div>
+    <div class="navcol">
+      <span class="navlabel">mehr</span>
+      <a href="#">archiv</a>
+      <a href="#">vip</a>
+    </div>
+    <div class="navcol">
+      <span class="navlabel">kontakt</span>
+      <a href="#">instagram</a>
+      <a href="#">e-mail</a>
+      <a href="#" class="cart">warenkorb (0)</a>
+    </div>
+  </nav>
+</header>
+
 <section class="intro" id="intro">
   <div class="stage" id="stage">
     <img class="poster" id="poster" src="frames/001.jpg" alt="">
-    <canvas class="starfield" id="starfield" aria-hidden="true"></canvas>
-    <div class="hero" id="hero">
-      <div class="hero-line">Rutger</div>
-    </div>
     <canvas class="seq" id="seq"></canvas>
     <div class="hint" id="hint">scrollen</div>
-
-    <header class="navbar" id="navbar">
-      <div class="rule">
-        <i></i>
-        <svg width="270" height="46" viewBox="0 0 270 46" aria-hidden="true">
-          <path d="M0 .5 L52 45.5 H218 L270 .5" fill="none" stroke="currentColor" stroke-width="1"/>
-        </svg>
-        <i></i>
-      </div>
-      <div class="wordmark">Rutger</div>
-      <nav class="navrow">
-        <ul class="left">
-          <li><a href="#shop">Shop</a></li>
-          <li><a href="#">Kategorien +</a></li>
-          <li><a href="#">Drops +</a></li>
-        </ul>
-        <ul class="right">
-          <li><a href="#">Suche</a></li>
-          <li><a href="#">Archiv</a></li>
-          <li><a href="#">VIP</a></li>
-          <li><a href="#" aria-label="Warenkorb">
-            <svg class="bag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
-              <path d="M4 7h16l-1.2 13.5H5.2L4 7Z"/><path d="M8.5 7V5.5a3.5 3.5 0 0 1 7 0V7"/>
-            </svg>
-          </a></li>
-        </ul>
-      </nav>
-    </header>
-
   </div>
 </section>
 
 <section class="shop" id="shop">
+  <!-- Sternenfeld liegt jetzt hier, hinter dem Shop-Inhalt. -->
+  <canvas class="starfield" id="starfield" aria-hidden="true"></canvas>
   <h2>Shop</h2>
   <p>Platzhalter. Hier stehen später 2–3 Artikel mit Größen, angebunden an Stripe Checkout.</p>
   <div class="grid">
@@ -358,63 +369,44 @@
 <script>
 (() => {
   // ---- Stellschrauben ---------------------------------------------------
-  const FRAME_COUNT   = 176;
-  const FRAME_PATH    = i => `frames/${String(i).padStart(3, '0')}.jpg`;
+  const FRAME_COUNT = 176;
+  const FRAME_PATH  = i => `frames/${String(i).padStart(3, '0')}.jpg`;
 
-  const DAMPING       = 0.085;  // kleiner = schwerer/träger. 0.085 ≈ igloo-Gefühl
-  const CAM_PUSH      = 0.06;   // Hineinfahrt. Klein halten: das Material fährt schon selbst
+  const DAMPING  = 0.085;  // kleiner = schwerer/träger
+  const CAM_PUSH = 0.06;   // Hineinfahrt. Klein halten: das Material fährt schon selbst
 
-  const SEQ_END       = 0.55;   // bis hier läuft die Bildsequenz vollflächig
-  const SHRINK_END    = 0.88;   // bis hier schrumpft das Video auf Kartengröße
-  const TEXT_IN       = 0.50;   // Schrift kommt kurz vor SEQ_END, also bevor das Video schrumpft
-  const TEXT_FADE     = 0.10;   // so schnell ist sie sichtbar — der Scramble läuft danach weiter
-  const NAV_IN        = 0.80;   // ab hier fährt die Menüleiste ein — voll da bei SHRINK_END
-  const END_W         = 0.44;   // Zielbreite der Karte ab 1200 px Bühnenbreite
-  const END_W_S       = 0.86;   // ... und bis 480 px. Dazwischen wird interpoliert.
-  const END_H         = 0.64;   // Deckel über die Bühnenhöhe (hohe, schmale Fenster)
-  const END_RADIUS    = 14;     // px Eckenradius der Karte
-  // Wie viel Bildbreite im Vollbild mindestens stehen bleiben muss. Das Material
-  // ist quer (16:9), ein Handy hochkant ist 9:19,5 — ohne Grenze schneidet
-  // `cover` 74 % der Breite weg und zieht den Rest 3,7× auf. Statt dessen wird
-  // die Bühne oben und unten mit --ground aufgefüllt.
-  const MIN_VIS       = 0.55;
+  // Die Sequenz läuft über den ganzen Scrollweg der Intro und bleibt dabei
+  // formatfüllend. Sie wird nicht zur Karte und blendet nicht in einen Titel:
+  // das Menü steht ab dem ersten Pixel, die Seite braucht also kein
+  // Vorschaltbild. Am Ende schiebt sich der Shop einfach darüber.
+  // Frühere Zustände hängen am Tag `stand-video-als-karte`.
 
-  // Schriftzug über dem Video
-  const HERO_TEXT     = 'RUTGER';
-  const HERO_ALPHA    = 0.68;   // durchsichtig, das Video scheint deutlich durch
-  // Die Schrift richtet sich nach der Videokarte, nicht nach der Bildbreite.
-  // Sonst steht sie bei 1440 doppelt so breit wie die Karte und bei 2560 gleich
-  // breit — dasselbe Bild läse sich auf jedem Gerät anders. 0.287 ist der
-  // Faktor, der bei 1920 genau die abgenommenen 240 px ergibt.
-  const HERO_VS_CARD  = 0.287;
-  // Deckel für schmale Bildschirme: dort ist die Karte fast bildbreit, die
-  // Karten-Regel würde den Schriftzug aus dem Bild schieben.
-  const HERO_MAX_VW   = 0.17;
-  const SCRAMBLE_MS   = 55;     // wie schnell die Zufallszeichen wechseln
-  const SCRAMBLE_POOL = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ#%&*+=/<>';
+  // Wie viel Bildbreite mindestens stehen bleiben muss. Das Material ist quer
+  // (16:9), ein Handy hochkant ist 9:19,5 — ohne Grenze schneidet `cover` 74 %
+  // der Breite weg und zieht den Rest 3,7× auf. Statt dessen füllt --ground
+  // oben und unten auf.
+  const MIN_VIS = 0.55;
 
-  const SHOP_RISE     = 80;     // px, aus denen der Shop hochkommt
-  const SHOP_SCALE    = 0.94;   // Startgröße des Shops
+  const SHOP_RISE  = 80;   // px, aus denen der Shop hochkommt
+  const SHOP_SCALE = 0.94; // Startgröße des Shops
 
-  // Sterne. Die Werte sind an einer 1920 breiten Bühne festgelegt und werden
-  // unten mit der tatsächlichen Bildbreite heruntergerechnet.
-  const ST_SRC     = 'stars.webp';
-  const ST_COLS    = 12, ST_ROWS = 10, ST_TILE = 224;
-  const ST_FRAMES  = ST_COLS * ST_ROWS;   // 120 Bilder = eine volle Umdrehung
-  const ST_FPS     = 15;
-  const ST_IN      = 0.82;      // ab hier blenden die Sterne auf, voll da bei SHRINK_END
-  const ST_N       = 25;        // Anzahl bei 1920×945
-  const ST_BEHIND  = 3;         // wie viele hinter der Videokarte langziehen
-  const ST_MAX     = 250;       // Größe des größten Sterns bei 1920 breit
-  const ST_DEPTH   = 0.75;      // 0 = alle gleich groß, 1 = fast alle winzig
-  const ST_DRIFT   = 2.3;
-  const ST_AXIS    = 26 * Math.PI / 180;   // gemeinsame Driftachse
-  const ST_GAP     = 16;        // Mindestluft zwischen zwei Sternbahnen
-  const ST_SEED    = 20260825;
+  // Sterne. Werte sind an einer 1920 breiten Bühne festgelegt und werden unten
+  // mit der tatsächlichen Bildbreite heruntergerechnet. Sie sind jetzt der
+  // Hintergrund des Shops, nicht mehr das Endbild der Intro.
+  const ST_SRC    = 'stars.webp';
+  const ST_COLS   = 12, ST_ROWS = 10, ST_TILE = 224;
+  const ST_FRAMES = ST_COLS * ST_ROWS;   // 120 Bilder = eine volle Umdrehung
+  const ST_FPS    = 15;
+  const ST_N      = 25;        // Anzahl bei 1920×945
+  const ST_MAX    = 250;       // Größe des größten Sterns bei 1920 breit
+  const ST_DEPTH  = 0.75;      // 0 = alle gleich groß, 1 = fast alle winzig
+  const ST_DRIFT  = 2.3;
+  const ST_AXIS   = 26 * Math.PI / 180;   // gemeinsame Driftachse
+  const ST_GAP    = 16;        // Mindestluft zwischen zwei Sternbahnen
+  const ST_SEED   = 20260825;
   // Gemessen, nicht geschätzt: der weiteste undurchsichtige Punkt einer Kachel
-  // liegt bei 0.523 × Kachelbreite vom Mittelpunkt. Die 2D-Drehung geht um
-  // denselben Mittelpunkt und ändert daran nichts.
-  const ST_RADIUS  = 0.53;
+  // liegt bei 0.523 × Kachelbreite vom Mittelpunkt.
+  const ST_RADIUS = 0.53;
   // -----------------------------------------------------------------------
 
   const canvas = document.getElementById('seq');
@@ -422,66 +414,28 @@
   const intro  = document.getElementById('intro');
   const stage  = document.getElementById('stage');
   const shop   = document.getElementById('shop');
-  const hero   = document.getElementById('hero');
   const navbar = document.getElementById('navbar');
   const hint   = document.getElementById('hint');
   const hud    = document.getElementById('hud');
 
   const clamp01 = v => Math.min(1, Math.max(0, v));
-
-  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const reduce  = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   const frames = [];
   let loaded = 0, ready = false;
   let target = 0, eased = 0;
   let iw = 0, ih = 0;
-  // Maße in CSS-Pixeln plus das dpr, mit dem der Puffer angelegt wurde.
-  // Nicht in draw() neu auslesen — sonst driften Puffer und Anzeige auseinander,
-  // sobald sich Fenstergröße oder Zoom ändern.
+  // Maße in CSS-Pixeln plus das dpr, mit dem der Puffer angelegt wurde. Nicht in
+  // draw() neu auslesen — sonst driften Puffer und Anzeige auseinander, sobald
+  // sich Fenstergröße oder Zoom ändern.
   let cssW = 0, cssH = 0, dprUsed = 1;
-  let shrink = 0;   // 0 = Video füllt den Bildschirm, 1 = Video ist eine Karte
-
-  // ---- Videobox ---------------------------------------------------------
-  // Eine Quelle für Anfangs- und Endgröße. draw() zeichnet danach, layoutStars()
-  // hält die Sterne davon frei — beides muss zwingend dieselbe Rechnung nutzen.
-  function videoBox() {
-    const asp = (iw && ih) ? iw / ih : 16 / 9;
-    // Endgröße: auf dem Handy fast bildbreit, auf dem Desktop knapp die Hälfte.
-    // 44 % von 390 px wären eine Briefmarke, auf die kein Schriftzug passt.
-    const f = END_W + (END_W_S - END_W) * clamp01((1200 - cssW) / (1200 - 480));
-    const endW = Math.min(cssW * f, cssH * END_H * asp);
-    // Anfangsgröße: volle Breite, Höhe aber nur so weit, dass MIN_VIS der
-    // Bildbreite stehen bleibt. Auf breiten Bildschirmen greift das nie.
-    const startH = Math.min(cssH, cssW / (MIN_VIS * asp));
-    return { asp, endW, endH: endW / asp, startW: cssW, startH };
-  }
-
-  // ---- Schriftzug -------------------------------------------------------
-  const heroLine = document.querySelector('.hero-line');
-  let heroShown = '';
-
-  // Der Scramble hängt am Scrollfortschritt, nicht an einer Uhr. Dadurch löst
-  // sich der Text beim Zurückscrollen wieder auf, statt einmal abzulaufen.
-  function scramble(t) {
-    const p = clamp01((t - TEXT_IN) / (SHRINK_END - TEXT_IN));
-    const n = HERO_TEXT.length;
-    // Zufallszeichen wechseln in Stufen, nicht in jedem Bild — sonst ist es Matsch.
-    const step = Math.floor(performance.now() / SCRAMBLE_MS);
-    let out = '';
-    for (let i = 0; i < n; i++) {
-      // Buchstabe i rastet ein, sobald der Fortschritt seine Schwelle passiert.
-      // Von links nach rechts, fertig genau dann, wenn das Video steht.
-      if (p >= (i + 1) / (n + 1)) out += HERO_TEXT[i];
-      else out += SCRAMBLE_POOL[(step * 7 + i * 13 + i * i) % SCRAMBLE_POOL.length];
-    }
-    if (out !== heroShown) { heroShown = out; heroLine.textContent = out; }
-  }
 
   // ---- Sterne -----------------------------------------------------------
   const sky    = document.getElementById('starfield');
   const skyCtx = sky.getContext('2d');
   const sheet  = new Image();
   let sheetOk = false, stars = [], starInfo = '–';
+  let skyW = 0, skyH = 0;
 
   sheet.decoding = 'async';
   sheet.onload = () => { sheetOk = true; drawStars(0); };
@@ -490,21 +444,18 @@
   const rand = seed => () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296;
 
   function layoutStars() {
-    if (!cssW || !cssH) return;
+    if (!skyW || !skyH) return;
 
     // Alles hängt an der Bildbreite: auf dem Handy weniger und kleinere Sterne,
     // sonst stehen 25 Stück auf 390 px übereinander.
-    const k    = Math.min(1, Math.max(0.42, cssW / 1920));
-    const dens = Math.min(1, Math.max(0.35, (cssW * cssH) / (1920 * 945)));
+    const k    = Math.min(1, Math.max(0.42, skyW / 1920));
+    const dens = Math.min(1, Math.max(0.35, (skyW * skyH) / (1920 * 945)));
     const n    = Math.max(4, Math.round(ST_N * dens));
     const maxS = ST_MAX * k;
 
-    // Sperrfläche: die Videokarte in ihrer Endgröße plus die Menüleiste.
-    const { endW, endH } = videoBox();
-    const M = 14;
-    const card = { x0: (cssW - endW) / 2 - M, x1: (cssW + endW) / 2 + M,
-                   y0: (cssH - endH) / 2 - M, y1: (cssH + endH) / 2 + M };
-    const navH = navbar.offsetHeight || 98;
+    // Einzige Sperrfläche ist das Menü. Der Shop-Inhalt liegt darüber und die
+    // Kacheln sind deckend, dort dürfen die Sterne also durchziehen.
+    const navH = (navbar.offsetHeight || 90) + 16;
 
     const r = rand(ST_SEED);
     const expo = 1 + ST_DEPTH * 4;
@@ -529,31 +480,16 @@
     });
     cand.sort((a, b) => b.R - a.R);         // Große zuerst, die sind am schwersten unterzubringen
 
-    // Die kleinsten laufen bewusst durch den Kartenbereich. Sie verschwinden
-    // hinter dem Video und tauchen an dessen Rand wieder auf.
-    const behind = new Set(cand.slice(Math.max(0, cand.length - ST_BEHIND)).map(c => c.i));
-
     const out = [];
     for (const c of cand) {
       const pr = rand(ST_SEED + c.i * 7919);
-      const inCard = behind.has(c.i);
       let ok = false;
       for (let gap = ST_GAP; gap >= 0 && !ok; gap -= 4) {   // notfalls Luft verkleinern
         for (let tries = 0; tries < 400; tries++) {
           // Mittelpunkt liegt immer im Bild, der Stern darf über den Rand
           // hinausragen — angeschnitten am Rand sieht gut aus und schafft Platz.
-          const x = inCard ? card.x0 + pr() * (card.x1 - card.x0) : pr() * cssW;
-          const y = inCard ? card.y0 + pr() * (card.y1 - card.y0) : navH + pr() * (cssH - navH);
-
-          if (!inCard) {
-            const qx = Math.max(card.x0, Math.min(x, card.x1));
-            const qy = Math.max(card.y0, Math.min(y, card.y1));
-            const dc = Math.hypot(x - qx, y - qy);
-            if (dc < c.R) continue;
-            // Dichteverlauf: je näher an der Karte, desto unwahrscheinlicher.
-            // Sonst liegt alles gleichmäßig herum, statt die Karte zu rahmen.
-            if (pr() > Math.min(1, 0.10 + dc / (0.30 * Math.min(cssW, cssH)))) continue;
-          }
+          const x = pr() * skyW;
+          const y = navH + pr() * (skyH - navH);
           // Abstand zu allen schon gesetzten. Die Bahnen sind geschlossen, also
           // reicht diese eine Prüfung, damit sich nie zwei Sterne überlappen.
           let hit = false;
@@ -582,7 +518,7 @@
 
   function drawStars(t) {
     if (!sheetOk) return;
-    skyCtx.clearRect(0, 0, cssW, cssH);
+    skyCtx.clearRect(0, 0, skyW, skyH);
     const base = Math.floor(t * ST_FPS);
     const ca = Math.cos(ST_AXIS), sa = Math.sin(ST_AXIS);
     for (const st of stars) {
@@ -622,21 +558,30 @@
   // ---- Zeichnen ---------------------------------------------------------
   function resize() {
     dprUsed = Math.min(devicePixelRatio || 1, 2);   // bei 2 gedeckelt
+    // Gemessen statt geschaetzt: die Leiste ist auf dem Handy flacher, und
+    // Shop-Abstand wie Ankerziel haengen beide an dieser einen Zahl.
+    // Ueberschreibt den Startwert aus :root mit der gemessenen Hoehe. Die Leiste
+    // bricht auf schmalen Bildschirmen um und ist dann hoeher.
+    document.documentElement.style.setProperty('--nav-h', navbar.offsetHeight + 'px');
     const r = stage.getBoundingClientRect();
     cssW = r.width; cssH = r.height;
     canvas.width  = Math.round(cssW * dprUsed);
     canvas.height = Math.round(cssH * dprUsed);
     ctx.setTransform(dprUsed, 0, 0, dprUsed, 0, 0);
 
-    sky.width  = canvas.width;
-    sky.height = canvas.height;
+    // Das Sternenfeld hat eine eigene Größe: es klebt im Shop und ist immer nur
+    // fensterhoch, egal wie lang der Shop wird.
+    const s = sky.getBoundingClientRect();
+    skyW = s.width; skyH = s.height;
+    sky.width  = Math.round(skyW * dprUsed);
+    sky.height = Math.round(skyH * dprUsed);
     skyCtx.setTransform(dprUsed, 0, 0, dprUsed, 0, 0);
-    layoutStars();          // Anzahl, Größe und Plätze hängen an der Bühnengröße
-    heroLine.style.fontSize =
-      Math.min(videoBox().endW * HERO_VS_CARD, cssW * HERO_MAX_VW).toFixed(1) + 'px';
+    layoutStars();
     // Das Setzen von sky.width hat das Canvas geleert. In Bewegung zeichnet die
     // Schleife im nächsten Bild nach — bei reduzierter Bewegung niemand, deshalb hier.
-    drawStars(performance.now() / 1000);
+    // Dort mit fester Zeit 0, sonst haengt das Standbild an der Uhr und ein
+    // spaeteres resize() zeichnet eine andere Sternstellung.
+    drawStars(reduce ? 0 : performance.now() / 1000);
 
     draw(eased);
   }
@@ -644,48 +589,33 @@
   function draw(t) {
     if (!iw || !cssW) return;
 
-    const p = Math.min(1, t / SEQ_END);                 // Fortschritt der Sequenz
-    const idx = Math.min(FRAME_COUNT - 1, Math.max(0, Math.round(p * (FRAME_COUNT - 1))));
+    const idx = Math.min(FRAME_COUNT - 1, Math.max(0, Math.round(t * (FRAME_COUNT - 1))));
     const img = frames[idx];
     if (!img.complete || !img.naturalWidth) return;
 
-    const g = Math.min(1, Math.max(0, (t - SEQ_END) / (SHRINK_END - SEQ_END)));
-    shrink = g * g * (3 - 2 * g);                       // smoothstep: weich raus, weich rein
-    const m = shrink;
+    // Volle Breite, Höhe nur so weit, dass MIN_VIS der Bildbreite stehen bleibt.
+    const asp = iw / ih;
+    const bw = cssW;
+    const bh = Math.min(cssH, cssW / (MIN_VIS * asp));
+    const bx = 0, by = (cssH - bh) / 2;
 
-    // Zielbox hat das Format des Materials. Dadurch ist am Ende das ganze Bild
-    // zu sehen — kein Beschnitt, egal wie breit der Bildschirm ist.
-    const { endW, endH, startW, startH } = videoBox();
-
-    const bw = startW + (endW - startW) * m;
-    const bh = startH + (endH - startH) * m;
-    const bx = (cssW - bw) / 2;
-    const by = (cssH - bh) / 2;
-
-    // Bild deckend in die Box. Am Anfang beschneidet das (Vollbild),
-    // am Ende ist Box == Bildformat, also passt es exakt.
-    const sc = Math.max(bw / iw, bh / ih) * (1 + CAM_PUSH * p * (1 - m));
+    const sc = Math.max(bw / iw, bh / ih) * (1 + CAM_PUSH * t);
     const w = iw * sc, h = ih * sc;
 
     ctx.clearRect(0, 0, cssW, cssH);
     ctx.save();
     ctx.beginPath();
-    if (ctx.roundRect) ctx.roundRect(bx, by, bw, bh, END_RADIUS * m);
-    else ctx.rect(bx, by, bw, bh);      // ältere Browser: eckige Karte statt gar keiner
+    ctx.rect(bx, by, bw, bh);
     ctx.clip();
     ctx.drawImage(img, bx + (bw - w) / 2, by + (bh - h) / 2, w, h);
     ctx.restore();
 
     hud.textContent =
-      `Frame ${idx + 1} / ${FRAME_COUNT}
-` +
-      `Sequenz ${(p * 100).toFixed(1)} %
-` +
-      `Schrumpf ${(m * 100).toFixed(0)} %
-` +
-      (ready ? 'geladen' : `lädt ${loaded}/${FRAME_COUNT}`) + `
-` + starInfo + `
-h = Anzeige · t = RUTGER`;
+      'Frame ' + (idx + 1) + ' / ' + FRAME_COUNT + '\n' +
+      'Sequenz ' + (t * 100).toFixed(1) + ' %\n' +
+      (ready ? 'geladen' : 'lädt ' + loaded + '/' + FRAME_COUNT) + '\n' +
+      starInfo + '\n' +
+      'h = Anzeige';
   }
 
   // ---- Scroll ----------------------------------------------------------
@@ -700,26 +630,9 @@ h = Anzeige · t = RUTGER`;
     if (Math.abs(target - eased) < 0.0002) eased = target;
 
     draw(eased);
-
-    // Schriftzug ist schnell da, entwirrt sich dann langsam: sichtbar noch bevor
-    // das Video zu schrumpfen anfängt, ausgelesen genau dann, wenn es steht.
-    const heroV = clamp01((eased - TEXT_IN) / TEXT_FADE);
-    hero.style.opacity = String(heroV * HERO_ALPHA);
-    if (heroV > 0) scramble(eased);
-
-    const nav = clamp01((eased - NAV_IN) / (SHRINK_END - NAV_IN));
-    navbar.style.opacity = String(nav);
-    navbar.style.transform = `translateY(${(nav - 1) * 12}px)`;
-    navbar.style.pointerEvents = nav > 0.9 ? 'auto' : 'none';
     hint.style.opacity = String(Math.max(0, 1 - eased * 6));
 
-    // Sterne kommen mit der Menüleiste, sind voll da, wenn das Video steht.
-    // Bei 0 wird nicht gezeichnet — kein Akku für Unsichtbares.
-    const sv = clamp01((eased - ST_IN) / (SHRINK_END - ST_IN));
-    sky.style.opacity = String(sv);
-    if (sv > 0) drawStars(performance.now() / 1000);
-
-    // Shop kommt danach ganz normal von unten hoch
+    // Shop kommt von unten hoch, die Sterne blenden mit ihm auf.
     const r = shop.getBoundingClientRect();
     const p = clamp01(1 - r.top / innerHeight);
     if (p >= 1) {
@@ -731,6 +644,12 @@ h = Anzeige · t = RUTGER`;
       shop.style.opacity = String(Math.max(0.15, p));
     }
 
+    // Nur zeichnen, wenn der Shop überhaupt im Bild ist. Sonst liefe die
+    // Sternenschleife die ganze Intro über mit und kostete durchgehend Akku.
+    const sichtbar = r.top < innerHeight && r.bottom > 0;
+    sky.style.opacity = String(p);
+    if (sichtbar && p > 0) drawStars(performance.now() / 1000);
+
     requestAnimationFrame(tick);
   }
 
@@ -738,29 +657,20 @@ h = Anzeige · t = RUTGER`;
   // ResizeObserver statt nur window.resize: fängt auch Layout- und Zoomänderungen,
   // die kein resize-Event auslösen.
   new ResizeObserver(() => { resize(); readScroll(); }).observe(stage);
-  // Tastenkürzel fürs Entwickeln. Betrifft nur den großen Schriftzug über dem
-  // Video — die Wortmarke in der Menüleiste bleibt stehen.
-  addEventListener('keydown', e => {
-    if (e.key === 'h') hud.classList.toggle('off');
-    if (e.key === 't') hero.classList.toggle('off');
-  });
+  addEventListener('keydown', e => { if (e.key === 'h') hud.classList.toggle('off'); });
 
   readScroll();
   resize();
 
   if (reduce) {
     intro.style.height = '100svh';
-    // eased mitsetzen, nicht nur einmal mit 1 zeichnen: das erste draw(1) läuft,
-    // bevor ein Frame geladen ist, und der resize() danach zeichnet sonst wieder
-    // mit eased = 0 — das Standbild stünde auf Vollbild statt auf Kartengröße.
+    // eased mitsetzen, nicht nur einmal zeichnen: das erste draw() läuft, bevor
+    // ein Frame geladen ist, und der resize() danach zeichnet sonst wieder mit
+    // eased = 0.
     target = eased = 1;
-    draw(1);                              // Standbild in Kartengröße, keine Bewegung
+    draw(1);                              // letztes Bild, keine Bewegung
     sky.style.opacity = '1';
     drawStars(0);                         // Sterne stehen still, keine Bahn, kein Drehen
-    hero.style.opacity = String(HERO_ALPHA);
-    heroLine.textContent = HERO_TEXT;     // kein Scramble, der Text steht sofort
-    navbar.style.opacity = '1';
-    navbar.style.pointerEvents = 'auto';
     shop.style.transform = 'none';
     shop.style.opacity = '1';
   } else {
