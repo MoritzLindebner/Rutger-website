@@ -15,6 +15,20 @@
 
     --stage-h: 100svh;
 
+    /* Breite einer Produktkachel und der Abstand dazwischen. Die Eckwerte sind
+       die der Vorlage: 400 px breit mit 30 px Abstand am Desktop, 280/15 auf dem
+       Handy. Dazwischen wird interpoliert statt geschaltet, und 74vw deckelt
+       schmale Geraete, damit links und rechts noch etwas vom Nachbarn hereinlugt. */
+    --card-w:   min(clamp(280px, 33vw, 400px), 74vw);
+    --card-gap: clamp(15px, 1.6vw, 30px);
+
+    /* Kachelfarben. Die Vorlage hat dafuer --hue-1..5; hier stehen die Toene der
+       Seite statt der fremden Palette. */
+    --hue-1: #6C0BA9;
+    --hue-2: #A939EF;
+    --hue-3: #A90B6C;
+    --hue-4: #FAA52E;
+
     /* Hoehe der festen Leiste. Startwert fuer den Fall ohne JS; resize() setzt
        den gemessenen Wert. Verlauf, Shop-Abstand und Sternenfeld haengen alle
        an dieser einen Zahl - vorher standen dafuer 110, 118 und 90 nebeneinander. */
@@ -77,29 +91,28 @@
     background: transparent;
   }
 
-  /* Sternenfeld: der Hintergrund des Shops, deckt dessen ganze Box ab.
-     Erst war das sticky mit fester Fensterhoehe. Gemessen war das falsch: der
-     Shop liess nur 88 px Scrollspielraum, ein sticky Element ohne Spielraum
-     klebt nicht, und durch das padding-top begann das Canvas 309 px zu tief -
-     oben blieb ein sternenloser Streifen.
-     ponytail: der Puffer ist so hoch wie der Shop. Bei drei Artikeln ist das
-     unkritisch; wird der Shop mehrere Bildschirme lang, wieder auf ein
-     fensterhohes Canvas mit eigener Scrollverrechnung umbauen. */
-  .starfield {
-    position: absolute;
-    inset: 0;
+  /* Ein einziges Sternenfeld hinter der ganzen Seite, fest im Fenster.
+
+     Vorher lagen zwei Instanzen davon in der Seite: eine in der Buehne, eine im
+     Shop. Beide waren auf ihren Kasten beschnitten und wanderten mit ihm — an
+     der Kante zwischen den Abschnitten sprang das Muster sichtbar um, und die
+     Sterne endeten an den Kastenraendern.
+
+     100lvh statt 100svh: das ist der einzige Ort, wo das richtig ist. Ein
+     Layout-Kasten in lvh springt, wenn die Adressleiste des Handys aufgeht —
+     dieser hier liegt fest, malt nur Hintergrund und darf deshalb ruhig immer
+     die groesste Fensterhoehe abdecken. Mit svh bliebe unten ein Streifen ohne
+     Sterne, sobald die Leiste verschwindet. */
+  #sky {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100lvh;
     z-index: 0;
     display: block;
-    width: 100%;
-    height: 100%;
     opacity: 0;
     pointer-events: none;
   }
-  /* Der Inhalt muss positioniert sein, sonst malt das Canvas darueber:
-     innerhalb eines Stapelkontexts liegen positionierte Elemente mit z-index 0
-     ueber dem Text nicht positionierter Bloecke. */
-  .shop > :not(.starfield) { position: relative; z-index: 1; }
-
   /* Liegt vor dem Sternenfeld und hinter dem Schriftzug. Die Deckkraft setzt
      die Schleife: das Video blendet ab, statt zur Karte zu werden. */
   .seq {
@@ -108,19 +121,6 @@
     display: block;
     width: 100%;
     height: 100%;
-  }
-
-  /* Kommt erst zum Vorschein, wenn das Video am Ende der Sequenz ausblendet
-     (siehe FADE_START im Script). Deckt sich mit dem Video, liegt aber
-     dahinter. */
-  .stage-stars {
-    position: absolute;
-    inset: 0;
-    z-index: 1;
-    width: 100%;
-    height: 100%;
-    opacity: 0;
-    pointer-events: none;
   }
 
   /* Standbild, solange die Sequenz lädt — nie eine leere Seite */
@@ -159,42 +159,52 @@
     align-items: flex-start;
     justify-content: space-between;
     gap: clamp(16px, 4vw, 64px);
-    padding: 26px clamp(16px, 2.2vw, 34px) 0;
+    padding: 20px clamp(16px, 2.2vw, 34px) 0;
     color: #D9D9D9;                    /* wie die Referenz: nicht Reinweiß */
     pointer-events: none;              /* der Verlauf faengt sonst Klicks ab */
   }
   .navbar a { pointer-events: auto; }
 
-  /* Den Verlauf hat die Referenz nicht — sie braucht ihn auch nicht, weil dort
-     meist Schwarz unter der Leiste liegt. Bei uns laeuft ein Video darunter.
-     Ueber alle 176 Frames gemessen: OHNE Verlauf faellt der Kontrast auf 1,00,
-     die Navigation waere stellenweise unsichtbar.
+  /* Abdunkeln muss sein — die Referenz braucht das nicht, weil dort Schwarz
+     unter der Leiste liegt; bei uns laeuft ein Video und darum herum der helle
+     #bgfx-Verlauf. Ohne Abdunklung faellt der Kontrast stellenweise auf 1,00.
+
+     Frueher lag dafuer ein Verlauf ueber die volle Breite (Leistenhoehe + 110 px,
+     also am Desktop rund 1920x197 px). Der hat auch die Bildmitte verdeckt, wo
+     gar keine Schrift steht. Jetzt sitzt die Abdunklung nur hinter den beiden
+     Schriftbloecken: ein weich ausgeblendetes Rechteck, das die Textbox um
+     20 px seitlich und 16 px oben/unten ueberragt.
+
+     Warum blur() und nicht ein radialer Verlauf: die Textboxen sind breite,
+     flache Rechtecke. Eine Ellipse, die sie voll deckt, muesste ueber die Ecken
+     hinauswachsen — gerechnet lag der Textrand bei farthest-corner mit 1,01
+     knapp AUSSERHALB des Vollton-Bereichs. Ein weichgezeichnetes Rechteck haelt
+     den Vollton ueber der ganzen Textbox und blendet erst im Rand aus.
+
      Die Staerke ist gerechnet, nicht geschaetzt: Schrift rgb(217) auf einem
-     reinweissen Pixel haelt 4,5:1 erst ab 63 % Schwaerzung. Deshalb bleibt der
-     Verlauf bis 60 % seiner Hoehe bei rund .70 und faellt erst darunter ab.
-     Das Plateau muss unter den tiefsten Link reichen: bei einem Abfall ab 44 %
-     lag 'warenkorb' schon im duenner werdenden Teil, und genau dort fielen
-     noch 3 Frames durch.
-     Nach der Korrektur: 0 von 176 Frames unter 4,5:1. */
-  .navbar::before {
+     reinweissen Pixel haelt 4,5:1 erst ab 63 % Schwaerzung. Weil dieser Wert
+     unabhaengig vom Untergrund gilt, muss dafuer kein einzelner Frame mehr
+     geprueft werden — es genuegt, die Deckkraft AN DER TEXTKANTE zu messen.
+     Und genau da lag der erste Versuch daneben: mit 14/10 px Rand, 16 px Radius
+     und blur(9) standen an der Ecke von 'e-mail' nur .53 an — 3,2:1, durchgefallen.
+     Der Blur wirkt in der Ecke aus zwei Richtungen, und ein Radius groesser als
+     der Rand schneidet die Textecke zusaetzlich an.
+     Mit 20/16 px, Radius 8 und blur(10) sind es an der schwaechsten Stelle .655
+     und damit 5,0:1. */
+  .navbar :where(.wordmark, .navcols) { position: relative; }
+  .navbar :where(.wordmark, .navcols)::before {
     content: "";
     position: absolute;
-    inset: 0 0 auto 0;
-    /* Die Stopps haengen an --nav-h, nicht an Prozenten: die Leiste ist auf
-       320 px 138 px hoch und bricht um, auf dem Desktop ist sie 118 px flach.
-       Mit festen Prozenten sass die unterste Linkzeile auf 320 px im
-       auslaufenden Teil des Verlaufs — dort fielen 16 von 88 Frames durch. */
-    height: calc(var(--nav-h) + 110px);
-    background: linear-gradient(to bottom,
-      rgb(0 0 0 / .74) 0,
-      rgb(0 0 0 / .70) var(--nav-h),
-      rgb(0 0 0 / .22) calc(var(--nav-h) + 70px),
-      transparent 100%);
-    pointer-events: none;
+    inset: -16px -20px;
     z-index: -1;
+    border-radius: 8px;
+    background: rgb(0 0 0 / .72);
+    filter: blur(10px);
+    pointer-events: none;
   }
 
   .wordmark {
+    display: inline-block;
     font-family: "Metal Mania", var(--font-nav);
     font-size: clamp(24px, 2.1vw, 34px);
     line-height: 1;
@@ -204,14 +214,16 @@
     white-space: nowrap;
   }
 
-  .navcols { display: flex; gap: clamp(18px, 3.2vw, 60px); }
+  /* Fuenf Spalten statt drei: der Abstand muss enger werden, sonst schiebt sich
+     die Leiste unter 1024 px in die Wortmarke. */
+  .navcols { display: flex; gap: clamp(14px, 2vw, 40px); }
   .navcol  { display: flex; flex-direction: column; }
 
   /* Rubrik und Links unterscheiden sich nur in der Groesse, nicht in Farbe oder
      Schnitt — genau wie in der Referenz (11 px gegen 16 px, beide 400). */
   /* Leichte Spanne statt fester px: 15 px wirken auf 2560 verloren. Nach oben
      eng begrenzt, damit die Leiste Bedienelement bleibt und nicht zu Inhalt wird. */
-  .navlabel { font-size: clamp(11px, .62vw, 13px); opacity: .62; margin-bottom: 9px; }
+  .navlabel { font-size: clamp(11px, .62vw, 13px); opacity: .62; margin-bottom: 7px; }
   .navbar a:not(.wordmark) { font-size: clamp(14px, .85vw, 18px); line-height: 1.42; }
 
   .navbar :where(.navlabel, a:not(.wordmark)) {
@@ -221,7 +233,6 @@
   }
   .navbar a { color: inherit; text-decoration: none; }
   .navbar a:not(.wordmark):hover { opacity: .6; }
-  .cart { margin-top: 6px; }
 
   /* Handy: drei Spalten passen nicht auf 320 px. Die Rubriken fallen weg, die
      Links stehen in einer Zeile — mehr traegt die Breite nicht, und ein
@@ -233,67 +244,160 @@
     .navbar { padding-top: 18px; gap: 12px; }
     .navlabel { display: none; }
     .navcol  { flex-direction: row; gap: 14px; }
-    .navcols { gap: 14px; flex-wrap: wrap; justify-content: flex-end; }
-    .navbar a:not(.wordmark) { font-size: clamp(13px, 3.4vw, 15px); }
-    .cart { margin-top: 0; }
+    /* Enger als vorher, weil hier jetzt zehn statt acht Links umbrechen.
+       Gemessen auf 375 px: 15 px/14 px Abstand ergaben 5 Zeilen und 134 px
+       Leiste, 12 px/10 px ergeben 3 Zeilen und 71 px. */
+    .navcols { gap: 3px 10px; flex-wrap: wrap; justify-content: flex-end; }
+    .navbar a:not(.wordmark) { font-size: clamp(12px, 3vw, 14px); line-height: 1.3; }
   }
 
   /* ---------- Shop ---------- */
 
+  /* Der Shop ist die Laufstrecke der Seitwaertsfahrt: so hoch, wie die Galerie
+     breit ueber den Rand hinausragt (1:1, gesetzt in resize()). Der Startwert
+     hier gilt, solange nicht gemessen ist. Kein eigener Hintergrund: #bgfx
+     liegt fest hinter der ganzen Seite und scheint durch. */
   .shop {
     position: relative;
     z-index: 2;
-    min-height: 100svh;
-    /* Oben zusaetzlich die Leistenhoehe, sonst laeuft die Ueberschrift darunter. */
-    padding: calc(var(--nav-h) + clamp(2rem, 6svh, 5rem))
-             clamp(1.25rem, 5vw, 5rem)
-             clamp(3rem, 10svh, 8rem);
-    /* Kein eigener Hintergrund: #bgfx liegt fest hinter der ganzen Seite und
-       scheint durch. */
+    height: 100svh;
     background: transparent;
+  }
+
+  /* Bleibt stehen, waehrend der Shop durchlaeuft — das Fenster, durch das die
+     Galerie faehrt. Kein transform hier und auf .shop: das bricht sticky. */
+  .shop-sticky {
+    position: sticky;
+    top: 0;
+    height: 100svh;
+    overflow: hidden;
+  }
+
+  /* Traegt die Auffahrt aus der Intro (transform/opacity aus dem Script).
+     Oben die Leistenhoehe, sonst laeuft die Ueberschrift darunter. */
+  /* z-index: der Inhalt muss ueber dem Sternen-Canvas liegen (das steht auf 0). */
+  .shop-inner {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    padding-top: calc(var(--nav-h) + clamp(.5rem, 3svh, 2.5rem));
+    padding-bottom: clamp(.75rem, 4svh, 3rem);
     /* Startwert ohne JS: vollständig sichtbar. Verstecken darf nur JS. */
     opacity: 1;
     will-change: transform, opacity;
   }
 
+  .shop-head { flex: 0 0 auto; padding: 0 clamp(1.25rem, 5vw, 5rem); }
   .shop h2 {
-    margin: 0 0 .6em;
-    font-size: clamp(1.75rem, 5vw, 3.5rem);
+    margin: 0 0 .3em;
+    font-size: clamp(1.5rem, 4.4vw, 3.5rem);
     letter-spacing: -.03em;
     text-transform: uppercase;
   }
-  .shop p { color: var(--text-muted); max-width: 48ch; line-height: 1.6; margin: 0 0 clamp(1rem, 3svh, 2.5rem); }
+  .shop p {
+    color: var(--text-muted); max-width: 48ch; line-height: 1.5;
+    margin: 0 0 clamp(.75rem, 2.5svh, 2rem);
+    font-size: clamp(.85rem, 1.4vw, 1rem);
+  }
+  /* Handy quer: ~390 px Hoehe abzueglich Leiste — der Fliesstext ist das
+     Erste, was hier weichen muss, damit die Kacheln noch Hoehe haben. */
+  @media (max-height: 500px) { .shop p { display: none; } }
 
-  .grid {
-    display: grid;
-    gap: clamp(1rem, 2.5vw, 2rem);
-    grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
-    max-width: 1200px;
+  /* Das Sichtfenster der Fahrt. Der linke Rand ist gerechnet, nicht gesetzt:
+     er schiebt die erste Kachel genau in die Bildmitte. Damit steht immer eine
+     Kachel mittig, und die Nachbarn ragen links und rechts hinaus — man geht
+     durch die Reihe hindurch, statt sie als Block zu verschieben.
+     (Die Vorlage macht das mit einem 400 px schmalen, zentrierten Kasten und
+     overflow: visible plus body { overflow-x: hidden }. Ueber den Innenabstand
+     gerechnet kommt dasselbe Bild heraus, ohne die Seite quer laufen zu lassen
+     — und ohne overflow-x: hidden am <html>, das sticky aushebeln kann.) */
+  .gallery-viewport {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+    /* Startwert ohne JS. resize() ueberschreibt ihn mit der GEMESSENEN
+       Kachelbreite — die kann kleiner sein als --card-w, wenn die Zeilenhoehe
+       die Kachel deckelt (Handy quer), und dann waere die Rechnung hier daneben. */
+    padding-left: calc((100% - var(--card-w)) / 2);
   }
-  /* Deckend, nicht durchscheinend: mit dem Sternenfeld dahinter wuerden sonst
-     Sterne durch die Produktkacheln ziehen. */
-  .card {
-    border: 1px solid color-mix(in srgb, var(--violet-lift) 25%, transparent);
-    border-radius: 4px;
-    padding: 1.25rem;
-    background: color-mix(in srgb, var(--violet) 8%, var(--ground));
+  .gallery {
+    display: flex;
+    align-items: center;
+    height: 100%;
+    gap: var(--card-gap);
+    will-change: transform;
   }
-  .card .ph {
+
+  /* Kachel wie in der Vorlage: randloses Foto, Farbverlauf darueber, Beschriftung
+     unten links. Kein Rahmen, kein Innenabstand, kein Knopf — das Bild ist die
+     Kachel.
+     Ein Unterschied zur Vorlage, und zwar ein noetiger: dort stehen 400x500 px
+     fest. Auf dem Handy im Querformat bleiben nach Leiste und Ueberschrift rund
+     250 px Hoehe — eine 500 px hohe Kachel passt da nicht. Deshalb treibt hier
+     die HOEHE die Kachel (gedeckelt auf die Zeilenhoehe), und die Breite kommt
+     ueber aspect-ratio hinterher. Das Verhaeltnis 4:5 ist dasselbe wie 400x500. */
+  .gallery-item {
+    flex: 0 0 auto;
+    height: min(calc(var(--card-w) * 1.25), 100%);
+    width: auto;
     aspect-ratio: 4/5;
-    background:
-      radial-gradient(ellipse at 50% 40%, color-mix(in srgb, var(--violet-lift) 35%, transparent), transparent 70%),
-      var(--ground);
-    border-radius: 2px;
-    margin-bottom: 1rem;
+    align-self: center;
+    position: relative;
+    overflow: hidden;
+    border-radius: 12px;
+    /* Deckend: mit dem Sternenfeld dahinter wuerden sonst Sterne durchziehen.
+       ponytail: der Platzhalterverlauf steht in --item-image, damit ein echtes
+       Foto spaeter nur diese eine Variable ersetzt. */
+    background-color: var(--ground);
+    background-image: var(--item-image);
+    background-size: cover;
+    background-position: center;
   }
-  .card h3 { margin: 0 0 .35rem; font-size: 1rem; font-weight: 600; letter-spacing: .01em; }
-  .card .price { color: var(--text-muted); font-size: .9rem; }
-  .buy {
-    margin-top: 1rem; width: 100%;
-    background: var(--amber); color: var(--ground);
-    border: 0; border-radius: 3px; padding: .8rem 1rem;
-    font: inherit; font-weight: 700; letter-spacing: .02em;
-    cursor: pointer;
+
+  /* Der Verlauf der Vorlage: unten das Kachelfarbton, oben nichts, multipliziert
+     ueber das Foto. Faerbt die dunkle Bildhaelfte ein und traegt den Text. */
+  .gallery-item::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to bottom, transparent 60%, var(--item-color));
+    mix-blend-mode: multiply;
+  }
+
+  .item-content {
+    position: absolute;
+    bottom: clamp(14px, 2.2vw, 30px);
+    left:   clamp(14px, 2.2vw, 30px);
+    right:  clamp(14px, 2.2vw, 30px);
+    z-index: 1;
+  }
+  .item-number {
+    display: block;
+    margin-bottom: 8px;
+    font-family: var(--font-nav);
+    font-size: clamp(11px, .8vw, 14px);
+    color: var(--item-color);
+    /* Die Vorlage laesst die Nummer im Kachelton stehen. Auf unserem dunklen
+       Grund traegt das zu wenig, deshalb eine Spur aufgehellt statt reiner Ton. */
+    filter: brightness(1.9);
+  }
+  .gallery-item h2 {
+    margin: 0;
+    /* .shop h2 stellt die Ueberschrift auf Versalien — die Kacheltitel der
+       Vorlage sind normal geschrieben, also hier zuruecknehmen. */
+    text-transform: none;
+    font-size: clamp(18px, 1.7vw, 28px);
+    font-weight: 600;
+    letter-spacing: -.01em;
+    color: #fff;
+  }
+  .item-price {
+    display: block;
+    margin-top: 6px;
+    font-size: clamp(12px, .9vw, 15px);
+    color: rgb(255 255 255 / .72);
   }
 
   /* ---------- Dev-Anzeige ---------- */
@@ -310,6 +414,17 @@
 
   @media (prefers-reduced-motion: reduce) {
     .hint { display: none; }
+    /* Keine scrollgetriebene Fahrt: die Reihe wird von Hand gewischt. Damit
+       faellt auch der zentrierende Rand weg — hier ist ein normaler richtig.
+       Rechts als margin am letzten Kind, nicht als padding am Kasten: ein
+       ueberlaufender Flexcontainer verschluckt sein padding-right (gemessen:
+       die letzte Kachel klebte am Bildrand). */
+    .gallery-viewport {
+      overflow-x: auto;
+      padding-left: clamp(1.25rem, 5vw, 5rem);
+    }
+    .gallery > :last-child { margin-right: clamp(1.25rem, 5vw, 5rem); }
+    .gallery { transform: none !important; }
   }
 </style>
 </head>
@@ -318,6 +433,11 @@
 <!-- Steht ab dem ersten Pixel und bleibt stehen. Deshalb braucht die Seite
      keine Vorschaltseite: die Identität ist sofort da, das Video ist
      Kopfbereich statt Tor. -->
+<!-- Steht vor allem anderen im Body: Nachbarn ohne z-index werden in
+     Dokumentreihenfolge gemalt, damit liegt das Feld hinter Buehne und Shop,
+     ohne dass es dafuer einen eigenen z-index-Wert braucht. -->
+<canvas id="sky" aria-hidden="true"></canvas>
+
 <header class="navbar" id="navbar">
   <a class="wordmark" href="#top">Rutger</a>
   <!-- ponytail: alle Ziele ausser dem Shop sind Platzhalter und zeigen auf
@@ -326,19 +446,27 @@
     <div class="navcol">
       <span class="navlabel">shop</span>
       <a href="#shop">alle artikel</a>
-      <a href="#shop">kategorien</a>
-      <a href="#shop">drops</a>
+      <a href="#">warenkorb (0)</a>
     </div>
     <div class="navcol">
-      <span class="navlabel">mehr</span>
-      <a href="#">archiv</a>
-      <a href="#">vip</a>
+      <span class="navlabel">werke</span>
+      <a href="#">songs</a>
+      <a href="#">musikvideos</a>
+    </div>
+    <div class="navcol">
+      <span class="navlabel">events</span>
+      <a href="#">festivals</a>
+      <a href="#">shows</a>
+    </div>
+    <div class="navcol">
+      <span class="navlabel">socials</span>
+      <a href="#">instagram</a>
+      <a href="#">tiktok</a>
     </div>
     <div class="navcol">
       <span class="navlabel">kontakt</span>
-      <a href="#">instagram</a>
+      <a href="#">management</a>
       <a href="#">e-mail</a>
-      <a href="#" class="cart">warenkorb (0)</a>
     </div>
   </nav>
 </header>
@@ -346,21 +474,42 @@
 <section class="intro" id="intro">
   <div class="stage" id="stage">
     <img class="poster" id="poster" src="frames/001.jpg" alt="">
-    <canvas class="stage-stars" id="stageStars" aria-hidden="true"></canvas>
     <canvas class="seq" id="seq"></canvas>
     <div class="hint" id="hint">scrollen</div>
   </div>
 </section>
 
+<!-- Weiterscrollen faehrt die Galerie seitwaerts durch: der Abschnitt ist die
+     Laufstrecke, .shop-sticky das stehende Fenster. -->
 <section class="shop" id="shop">
-  <!-- Sternenfeld liegt jetzt hier, hinter dem Shop-Inhalt. -->
-  <canvas class="starfield" id="starfield" aria-hidden="true"></canvas>
-  <h2>Shop</h2>
-  <p>Platzhalter. Hier stehen später 2–3 Artikel mit Größen, angebunden an Stripe Checkout.</p>
-  <div class="grid">
-    <div class="card"><div class="ph"></div><h3>Shirt — Tour</h3><div class="price">30,00 €</div><button class="buy">In den Warenkorb</button></div>
-    <div class="card"><div class="ph"></div><h3>Hoodie</h3><div class="price">65,00 €</div><button class="buy">In den Warenkorb</button></div>
-    <div class="card"><div class="ph"></div><h3>Vinyl</h3><div class="price">25,00 €</div><button class="buy">In den Warenkorb</button></div>
+  <div class="shop-sticky" id="shopSticky">
+    <div class="shop-inner" id="shopInner">
+      <div class="shop-head">
+        <h2>Shop</h2>
+        <p>Platzhalter. Weiterscrollen fährt seitwärts durch die Artikel — später mit Größen, angebunden an Stripe Checkout.</p>
+      </div>
+      <div class="gallery-viewport" id="galleryViewport">
+        <!-- Aufbau wie in der Vorlage: eine Kachel je Artikel, --item-color und
+             --item-image am Element, Nummer und Titel im .item-content.
+             ponytail: --item-image ist noch der Platzhalterverlauf. Sobald die
+             Produktfotos da sind, wird daraus url(photos/…) — sonst aendert
+             sich nichts. -->
+        <div class="gallery" id="gallery">
+          <div class="gallery-item" style="--item-color: var(--hue-1); --item-image: radial-gradient(ellipse at 50% 35%, #4A1470, #150A20)">
+            <div class="item-content"><span class="item-number">01</span><h2>Shirt — Tour</h2><span class="item-price">30,00 €</span></div>
+          </div>
+          <div class="gallery-item" style="--item-color: var(--hue-2); --item-image: radial-gradient(ellipse at 50% 35%, #5C2483, #170B22)">
+            <div class="item-content"><span class="item-number">02</span><h2>Hoodie</h2><span class="item-price">65,00 €</span></div>
+          </div>
+          <div class="gallery-item" style="--item-color: var(--hue-3); --item-image: radial-gradient(ellipse at 50% 35%, #6B1450, #1A0A18)">
+            <div class="item-content"><span class="item-number">03</span><h2>Vinyl</h2><span class="item-price">25,00 €</span></div>
+          </div>
+          <div class="gallery-item" style="--item-color: var(--hue-4); --item-image: radial-gradient(ellipse at 50% 35%, #6E4418, #1C1208)">
+            <div class="item-content"><span class="item-number">04</span><h2>Longsleeve</h2><span class="item-price">40,00 €</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </section>
 
@@ -396,6 +545,20 @@
   const SHOP_RISE  = 80;   // px, aus denen der Shop hochkommt
   const SHOP_SCALE = 0.94; // Startgröße des Shops
 
+  // Seitwaertsfahrt durch die Galerie, nach
+  // motion.dev/examples/vue-scroll-horizontal: hohe Laufstrecke, klebendes
+  // Fenster, Scrollfortschritt -> translateX. Die Strecke ist dort
+  // (n-1) * (Kachelbreite + Abstand) — also genau so weit, dass die LETZTE
+  // Kachel dort landet, wo die erste stand. Jede Kachel geht damit einmal durch
+  // die Bildmitte; das ist der Unterschied zwischen "durch den Raum gehen" und
+  // "einen Block verschieben". Gemessen statt gerechnet, dann stimmt es auch,
+  // wenn eine Kachel mal anders breit ist.
+  let panMax = 0, panEased = 0;
+
+  // Wie viel Scrollweg auf einen Pixel Fahrt kommt. 1 waere 1:1 und fuehlt sich
+  // gehetzt an; die Vorlage liegt mit 300vh auf 1720 px Fahrt bei rund 1,7.
+  const PAN_PACE = 1.6;
+
   // Sterne. Werte sind an einer 1920 breiten Bühne festgelegt und werden unten
   // mit der tatsächlichen Bildbreite heruntergerechnet. Sie sind jetzt der
   // Hintergrund des Shops, nicht mehr das Endbild der Intro.
@@ -426,6 +589,10 @@
   const intro  = document.getElementById('intro');
   const stage  = document.getElementById('stage');
   const shop   = document.getElementById('shop');
+  const shopSticky = document.getElementById('shopSticky');
+  const shopInner  = document.getElementById('shopInner');
+  const gallery    = document.getElementById('gallery');
+  const galleryVp  = document.getElementById('galleryViewport');
   const navbar = document.getElementById('navbar');
   const hint   = document.getElementById('hint');
   const hud    = document.getElementById('hud');
@@ -443,13 +610,12 @@
   let cssW = 0, cssH = 0, dprUsed = 1;
 
   // ---- Sterne -----------------------------------------------------------
-  // Zwei Instanzen desselben Feldes: eine liegt im Stage-Canvas und blendet auf,
-  // wenn das Video ausklingt; die andere wie bisher hinter dem Shop. Gleicher
-  // Seed in layout() -> beide zeigen dasselbe Muster, wirkt wie ein
-  // durchgehendes Sternenfeld statt zwei zufällig verschiedenen.
-  const sky      = document.getElementById('starfield');
-  const stageSky = document.getElementById('stageStars');
-  const sheet    = new Image();
+  // Ein Feld fuer die ganze Seite. Vorher lagen zwei Instanzen davon in der
+  // Seite (Buehne und Shop) — gleicher Seed, aber jede in ihrem eigenen Kasten:
+  // sobald beide Kaesten gleichzeitig im Bild waren, standen zwei Felder
+  // uebereinander und die Naht zwischen den Abschnitten war zu sehen.
+  const sky   = document.getElementById('sky');
+  const sheet = new Image();
   let sheetOk = false;
 
   const rand = seed => () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296;
@@ -511,10 +677,19 @@
         let ok = false;
         for (let gap = ST_GAP; gap >= 0 && !ok; gap -= 4) {   // notfalls Luft verkleinern
           for (let tries = 0; tries < 400; tries++) {
-            // Mittelpunkt liegt immer im Bild, der Stern darf über den Rand
-            // hinausragen — angeschnitten am Rand sieht gut aus und schafft Platz.
-            const x = pr() * w;
-            const y = navH + pr() * (h - navH);
+            // Der ganze Stern muss ins Bild: der Mittelpunkt haelt mindestens
+            // seinen Bahnradius Abstand zum Rand. R deckt dabei alles ab, was
+            // der Stern belegt — halbe Kantenlaenge (0,53 statt 0,5), sein
+            // ganzer Driftweg und der Hof (0,3 der Groesse) liegen darunter.
+            // Vorher lag der Mittelpunkt irgendwo im Bild und der Stern durfte
+            // ueberstehen; das sah am Rand nach Anschnitt aus.
+            // Passt ein Stern so gar nicht (gross, Fenster klein), wird der Rand
+            // so weit gelockert, dass wenigstens der Mittelpunkt im Bild bleibt —
+            // sonst faellt auf dem Handy quer die halbe Auswahl weg.
+            const mx = Math.min(cd.R, w / 2);
+            const my = Math.min(cd.R, (h - navH) / 2);
+            const x = mx + pr() * Math.max(0, w - 2 * mx);
+            const y = navH + my + pr() * Math.max(0, h - navH - 2 * my);
             // Abstand zu allen schon gesetzten. Die Bahnen sind geschlossen, also
             // reicht diese eine Prüfung, damit sich nie zwei Sterne überlappen.
             let hit = false;
@@ -537,8 +712,21 @@
         for (let b = a + 1; b < out.length; b++)
           worst = Math.min(worst, Math.hypot(out[a].x - out[b].x, out[a].y - out[b].y)
                                   - (out[a].R + out[b].R));
-      info = `Sterne ${out.length}/${n}, Luft ${out.length > 1 ? Math.round(worst) : '–'} px`;
+      // Zweite Selbstprüfung: ragt ein Stern über den Rand? R umschließt Stern,
+      // Hof und den ganzen Driftweg — die Aussage gilt damit für jeden Punkt
+      // der Bahn, nicht nur für die Ruhelage. Ein Überstand ist nur erlaubt,
+      // wenn der Stern größer als das halbe Feld ist; dann gibt es keine Stelle,
+      // an der er ganz hineinpasst.
+      let ueber = 0;
+      for (const s of out) {
+        if (s.R > w / 2 || s.R > (h - navH) / 2) continue;
+        ueber = Math.max(ueber, s.R - s.x, s.x + s.R - w, s.R - s.y, s.y + s.R - h);
+      }
+
+      info = `Sterne ${out.length}/${n}, Luft ${out.length > 1 ? Math.round(worst) : '–'} px`
+           + `, Rand ${Math.round(ueber)} px`;
       if (out.length > 1 && worst < 0) console.error('Sternbahnen überlappen:', worst);
+      if (ueber > 0) console.error('Stern ragt über den Rand:', ueber);
     }
 
     function draw(t) {
@@ -589,11 +777,10 @@
     };
   }
 
-  const skyField   = createStarfield(sky);
-  const stageField = createStarfield(stageSky);
+  const skyField = createStarfield(sky);
 
   sheet.decoding = 'async';
-  sheet.onload = () => { sheetOk = true; skyField.draw(0); stageField.draw(0); };
+  sheet.onload = () => { sheetOk = true; skyField.draw(0); };
   sheet.src = ST_SRC;
 
   // ---- Laden ------------------------------------------------------------
@@ -626,19 +813,47 @@
     canvas.height = Math.round(cssH * dprUsed);
     ctx.setTransform(dprUsed, 0, 0, dprUsed, 0, 0);
 
-    // Das Sternenfeld hinter dem Shop hat eine eigene Größe: es klebt im Shop
-    // und ist immer nur fensterhoch, egal wie lang der Shop wird. Das im Stage
-    // deckt sich mit dem Video, bekommt also cssW/cssH.
+    // Laufstrecke der Galerie: erst die Ueberbreite messen, dann den Shop genau
+    // so viel hoeher machen. Die Hoehe vorher zuruecksetzen, sonst misst die
+    // zweite Messung die Strecke der ersten mit.
+    // Bei reduzierter Bewegung wischt der Nutzer die Galerie selbst — dann
+    // bleibt der Shop fensterhoch und bekommt gar keine Strecke.
+    if (!reduce) {
+      const cards = gallery.children;
+
+      // Zentrierender Rand aus der GEMESSENEN Kachelbreite. Nicht aus --card-w
+      // gerechnet: ist die Zeile niedriger als die Kachel hoch waere (Handy
+      // quer), deckelt die Hoehe die Kachel, und die Breite faellt kleiner aus.
+      // Beide Male offsetWidth, nie getBoundingClientRect(): waehrend der
+      // Auffahrt steht auf .shop-inner ein scale(0.94), und das faelscht nur den
+      // Rect-Wert. Gemischt lag der Rand um 6 % daneben - am Desktop 57 px.
+      // offsetWidth des Sichtfensters ist ausserdem unabhaengig von seinem
+      // eigenen padding (Randkasten, von aussen bestimmt), also kein Kreis.
+      galleryVp.style.paddingLeft =
+        Math.max(0, (galleryVp.offsetWidth - cards[0].offsetWidth) / 2) + 'px';
+
+      // Weg von der ersten zur letzten Kachel. offsetLeft ist unabhaengig vom
+      // laufenden transform — anders als scrollWidth, das verschobenen Inhalt
+      // mitzaehlt und mitten in der Fahrt nur die Reststrecke ergaebe.
+      panMax = cards.length > 1
+        ? cards[cards.length - 1].offsetLeft - cards[0].offsetLeft
+        : 0;
+      // Die Hoehe des Shops vorher NICHT zuruecksetzen: das verkuerzt fuer einen
+      // Moment das Dokument, und der Browser zieht eine Scrollposition am Ende
+      // der Seite mit nach oben.
+      shop.style.height = (shopSticky.offsetHeight + panMax * PAN_PACE) + 'px';
+    }
+
+    // Das Sternenfeld steht fest im Fenster (100lvh), nicht in einem Abschnitt.
+    // Gemessen statt aus lvh gerechnet: nur der Browser weiss, wie gross sein
+    // groesstes Fenster gerade ist.
     const s = sky.getBoundingClientRect();
     skyField.resize(s.width, s.height);
-    stageField.resize(cssW, cssH);
-    // Das Resize hat die Canvases geleert. In Bewegung zeichnet die Schleife im
+    // Das Resize hat das Canvas geleert. In Bewegung zeichnet die Schleife im
     // nächsten Bild nach — bei reduzierter Bewegung niemand, deshalb hier.
     // Dort mit fester Zeit 0, sonst haengt das Standbild an der Uhr und ein
     // spaeteres resize() zeichnet eine andere Sternstellung.
-    const t0 = reduce ? 0 : performance.now() / 1000;
-    skyField.draw(t0);
-    stageField.draw(t0);
+    skyField.draw(reduce ? 0 : performance.now() / 1000);
 
     draw(eased);
   }
@@ -692,30 +907,56 @@
     draw(eased);
     hint.style.opacity = String(Math.max(0, 1 - eased * 6));
 
-    // Letztes Stück des Scrollwegs: das Video blendet aus, statt als Standbild
-    // zu bleiben, und gibt den Blick auf das Sternenfeld dahinter frei.
-    const fadeT = clamp01((eased - FADE_START) / (1 - FADE_START));
-    canvas.style.opacity = String(1 - fadeT);
-    stageSky.style.opacity = String(fadeT);
-    if (fadeT > 0) stageField.draw(performance.now() / 1000);
-
-    // Shop kommt von unten hoch, die Sterne blenden mit ihm auf.
+    // Shop kommt von unten hoch, die Sterne blenden mit ihm auf. Das transform
+    // sitzt auf .shop-inner, nicht auf dem Abschnitt: ein transformierter
+    // Vorfahr wuerde das sticky darin aushebeln.
     const r = shop.getBoundingClientRect();
     const p = clamp01(1 - r.top / innerHeight);
+
+    // Letztes Stück des Scrollwegs: das Video blendet aus, statt als Standbild
+    // zu bleiben, und gibt den Blick auf das Sternenfeld dahinter frei.
+    //
+    // Der zweite Anteil ist der Punkt, an dem es vorher sichtbar brach: die
+    // Bildsequenz laeuft gedaempft und hinkt dem Scroll hinterher, der Shop
+    // haengt ungedaempft an seiner eigenen Position. Dazwischen gab es einen
+    // Moment, in dem das Video noch voll dastand, waehrend der Shop schon von
+    // unten hereinfuhr — und die Unterkante des Videos stand als harte Linie
+    // quer im Bild.
+    // Deshalb haengt der Fade zusaetzlich an der Entfernung des Shops und ist
+    // fertig, BEVOR dieser das Fenster erreicht: solange auch nur ein Rest
+    // Video steht, zeichnet sich seine Unterkante ab. Der Uebergang laeuft ueber
+    // die letzte halbe Fensterhoehe davor.
+    const shopFade = clamp01((innerHeight * 1.5 - r.top) / (innerHeight * 0.5));
+    const fadeT = Math.max(clamp01((eased - FADE_START) / (1 - FADE_START)), shopFade);
+    canvas.style.opacity = String(1 - fadeT);
+
     if (p >= 1) {
-      shop.style.transform = 'none';        // scharf und bedienbar, sobald angekommen
-      shop.style.opacity = '1';
+      shopInner.style.transform = 'none';   // scharf und bedienbar, sobald angekommen
+      shopInner.style.opacity = '1';
     } else {
-      shop.style.transform =
+      shopInner.style.transform =
         `translateY(${(1 - p) * SHOP_RISE}px) scale(${SHOP_SCALE + p * (1 - SHOP_SCALE)})`;
-      shop.style.opacity = String(Math.max(0.15, p));
+      shopInner.style.opacity = String(Math.max(0.15, p));
     }
 
-    // Nur zeichnen, wenn der Shop überhaupt im Bild ist. Sonst liefe die
-    // Sternenschleife die ganze Intro über mit und kostete durchgehend Akku.
-    const sichtbar = r.top < innerHeight && r.bottom > 0;
-    sky.style.opacity = String(p);
-    if (sichtbar && p > 0) skyField.draw(performance.now() / 1000);
+    // Seitwaertsfahrt: Fortschritt am Scrollweg des Shops unter der klebenden
+    // Buehne (das ist panMax * PAN_PACE), abgebildet auf die volle Strecke.
+    // Gleiche Daempfung wie die Bildsequenz, damit sich die Seite durchgehend
+    // gleich anfuehlt.
+    const panRange  = panMax * PAN_PACE;
+    const panTarget = panRange > 0 ? clamp01(-r.top / panRange) * panMax : 0;
+    panEased += (panTarget - panEased) * DAMPING;
+    if (Math.abs(panTarget - panEased) < 0.05) panEased = panTarget;
+    gallery.style.transform = `translate3d(${-panEased}px,0,0)`;
+
+    // Das Feld steht jetzt hinter der ganzen Seite, also gibt es nur noch EINE
+    // Deckkraft: das Groessere aus "Video ist ausgeblendet" und "Shop faehrt
+    // auf". Beide steigen auf 1 und fallen nicht wieder — dazwischen bleibt das
+    // Feld stehen, statt am Abschnittswechsel abzublenden und neu aufzublenden.
+    // Solange es unsichtbar ist, laeuft die Schleife nicht mit (Akku).
+    const skyOn = Math.max(fadeT, p);
+    sky.style.opacity = String(skyOn);
+    if (skyOn > 0) skyField.draw(performance.now() / 1000);
 
     requestAnimationFrame(tick);
   }
@@ -738,12 +979,13 @@
     draw(1);                              // letztes Bild, keine Bewegung
     // Ohne Scroll-Animation direkt den Endzustand zeigen: Video weg, Sterne da.
     canvas.style.opacity = '0';
-    stageSky.style.opacity = '1';
-    stageField.draw(0);
     sky.style.opacity = '1';
     skyField.draw(0);                     // Sterne stehen still, keine Bahn, kein Drehen
-    shop.style.transform = 'none';
-    shop.style.opacity = '1';
+    shopInner.style.transform = 'none';
+    shopInner.style.opacity = '1';
+    // Die Galerie wird von Hand gewischt — Sichtfenster und Rand stellt der
+    // prefers-reduced-motion-Block im CSS um, der Shop bekommt in resize()
+    // gar keine Laufstrecke.
   } else {
     eased = target;
     requestAnimationFrame(tick);
