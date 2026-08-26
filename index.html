@@ -54,43 +54,6 @@
     -webkit-font-smoothing: antialiased;
   }
 
-  /* Animierter Verlauf hinter der ganzen Seite (Stage und Shop lassen ihn
-     durchscheinen). --ground als Hintergrund der Canvas selbst: so bleibt es
-     bei genau diesem dunklen Grund, falls WebGL fehlt oder noch laedt. */
-  #bgfx, #bgfx2d {
-    position: fixed;
-    inset: 0;
-    z-index: -1;
-    width: 100vw;
-    height: 100vh;
-    display: block;
-    background: var(--ground);
-  }
-
-  /* PROTOTYP - Vergleichsleiste fuer die drei Hintergrund-Varianten. Nach der
-     Entscheidung fuer eine Variante wieder raus, siehe Skript-Kommentar unten. */
-  #bgSwitcher {
-    position: fixed;
-    left: 50%; bottom: 18px;
-    transform: translateX(-50%);
-    z-index: 999;
-    display: flex; align-items: center; gap: 12px;
-    padding: 8px 14px;
-    background: #000c;
-    border: 1px solid #fff3;
-    border-radius: 999px;
-    color: var(--text);
-    font: 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
-    box-shadow: 0 4px 24px #0008;
-  }
-  #bgSwitcher button {
-    all: unset;
-    cursor: pointer;
-    padding: 2px 8px;
-    font: inherit;
-    color: var(--amber);
-  }
-  #bgSwitcher button:hover { color: var(--text); }
 
   /* ---------- Intro ---------- */
 
@@ -351,8 +314,6 @@
 </style>
 </head>
 <body>
-
-<canvas id="bgfx" aria-hidden="true"></canvas>
 
 <!-- Steht ab dem ersten Pixel und bleibt stehen. Deshalb braucht die Seite
      keine Vorschaltseite: die Identität ist sofort da, das Video ist
@@ -789,276 +750,26 @@
   }
 })();
 
-// ---- Hintergrund: PROTOTYP, drei Varianten im Vergleich -------------------
-// Frage: "wie bekommen wir den Grund heller als das alte Schwarz, ohne den
-// Sternen-Kontrast zu verlieren, und was sieht dabei am meisten nach etwas
-// aus?" Drei strukturell verschiedene Answers, per ?bg=a|b|c oder der Leiste
-// unten umschaltbar. Wegwerfcode: nach der Entscheidung Gewinner behalten,
-// die anderen zwei Varianten plus die Leiste wieder raus (siehe /prototype-
-// Skill). Kein neues Build-Tooling, keine Lib - alles Vanilla Canvas/WebGL.
+// ---- Hintergrund: Verlauf hinter Stage und Shop ---------------------------
+// 21st.dev-Gradient-Builder-Export (Copy-CSS), ohne React: ein <div> statt
+// einer Komponente, per JS als style-Objekt gesetzt statt in die <style> zu
+// schreiben - eine .css-Datei parst das '%' in der Data-URI (width='100%')
+// sonst als Fehler, inline per style-Property (wie im React-Original) geht
+// das Zeichen einfach durch. Keine Animation: die Vorlage ist ein statischer
+// Verlauf. Drei weitere, verworfene Varianten (WebGL-Shader, gemalter Nebel,
+// Spotlicht) standen zum Vergleich in Commit bfec6e2.
 (() => {
-  const VARIANTS = ['a', 'b', 'c', 'd'];
-  const LABELS = {
-    a: 'glaenzend — WebGL-Shader',
-    b: 'Nebel — gemalte Blobs',
-    c: 'minimal — Spotlicht',
-    d: '21st.dev-Export — statisches CSS',
-  };
-  const params = new URLSearchParams(location.search);
-  let variant = VARIANTS.includes(params.get('bg')) ? params.get('bg') : 'a';
-
-  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const glCanvas = document.getElementById('bgfx');
-  const c2d = document.createElement('canvas');
-  c2d.id = 'bgfx2d';
-  c2d.setAttribute('aria-hidden', 'true');
-  glCanvas.after(c2d);
-  const ctx2d = c2d.getContext('2d');
-
-  // ==== Variante A: glaenzender WebGL-Shader ================================
-  // Ersatz fuer die shadergradient.co-Vorlage (React + Three.js): eigener,
-  // abhaengigkeitsfreier WebGL-Shader statt der grossen Lib, weil die Seite
-  // sonst kein Build-Tooling braucht. Farben sind aus der Vorlage uebernommen,
-  // die Bewegung (Simplex-Noise, domain warp) ist eine eigene Annaeherung, kein
-  // Nachbau der 3D-Plane mit Env-Reflexion.
-  const FX_SPEED = 0.06;   // Zeit-Multiplikator, klein = ruhiger Fluss
-  const FX_FREQ  = 1.6;    // Rauschfrequenz, groesser = kleinteiligere Blasen
-  const FX_WARP  = 1.15;   // Staerke der Verzerrung durch das zweite Rauschfeld
-  const FX_GRAIN = 0.035;  // Korn-Anteil, 0 = aus
-  const FX_COLOR1 = [0x6c, 0x0b, 0xa9];   // --violet, aus der Vorlage
-  const FX_COLOR2 = [0xc1, 0x42, 0xdb];
-  const FX_COLOR3 = [0xba, 0x44, 0xe1];
-
-  const canvas = glCanvas;
-  const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
-  const toUnit = c => c.map(v => v / 255);
-  let glReady = false, glResize = () => {}, glFrame = () => {};
-
-  if (gl) setupGl();
-
-  function setupGl() {
-
-  const vsSrc = `
-    attribute vec2 aPos;
-    void main() { gl_Position = vec4(aPos, 0.0, 1.0); }
-  `;
-
-  // Simplex-Noise 3D nach Ian McEwan / Ashima Arts (webgl-noise, MIT-Lizenz,
-  // https://github.com/ashima/webgl-noise) - Standardbaustein, keine eigene Erfindung.
-  const fsSrc = `
-    precision highp float;
-    uniform vec2  uRes;
-    uniform float uTime;
-    uniform vec3  uColor1;
-    uniform vec3  uColor2;
-    uniform vec3  uColor3;
-
-    vec3 mod289(vec3 x){return x - floor(x * (1.0/289.0)) * 289.0;}
-    vec4 mod289(vec4 x){return x - floor(x * (1.0/289.0)) * 289.0;}
-    vec4 permute(vec4 x){return mod289(((x*34.0)+1.0)*x);}
-    vec4 taylorInvSqrt(vec4 r){return 1.79284291400159 - 0.85373472095314 * r;}
-
-    float snoise(vec3 v){
-      const vec2 C = vec2(1.0/6.0, 1.0/3.0);
-      const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
-      vec3 i  = floor(v + dot(v, C.yyy));
-      vec3 x0 = v - i + dot(i, C.xxx);
-      vec3 g = step(x0.yzx, x0.xyz);
-      vec3 l = 1.0 - g;
-      vec3 i1 = min(g.xyz, l.zxy);
-      vec3 i2 = max(g.xyz, l.zxy);
-      vec3 x1 = x0 - i1 + C.xxx;
-      vec3 x2 = x0 - i2 + C.yyy;
-      vec3 x3 = x0 - D.yyy;
-      i = mod289(i);
-      vec4 p = permute(permute(permute(
-                i.z + vec4(0.0, i1.z, i2.z, 1.0))
-              + i.y + vec4(0.0, i1.y, i2.y, 1.0))
-              + i.x + vec4(0.0, i1.x, i2.x, 1.0));
-      float n_ = 0.142857142857;
-      vec3 ns = n_ * D.wyz - D.xzx;
-      vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
-      vec4 x_ = floor(j * ns.z);
-      vec4 y_ = floor(j - 7.0 * x_);
-      vec4 x = x_ * ns.x + ns.yyyy;
-      vec4 y = y_ * ns.x + ns.yyyy;
-      vec4 h = 1.0 - abs(x) - abs(y);
-      vec4 b0 = vec4(x.xy, y.xy);
-      vec4 b1 = vec4(x.zw, y.zw);
-      vec4 s0 = floor(b0)*2.0 + 1.0;
-      vec4 s1 = floor(b1)*2.0 + 1.0;
-      vec4 sh = -step(h, vec4(0.0));
-      vec4 a0 = b0.xzyw + s0.xzyw*sh.xxyy;
-      vec4 a1 = b1.xzyw + s1.xzyw*sh.zzww;
-      vec3 p0 = vec3(a0.xy, h.x);
-      vec3 p1 = vec3(a0.zw, h.y);
-      vec3 p2 = vec3(a1.xy, h.z);
-      vec3 p3 = vec3(a1.zw, h.w);
-      vec4 norm = taylorInvSqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2,p2), dot(p3,p3)));
-      p0 *= norm.x; p1 *= norm.y; p2 *= norm.z; p3 *= norm.w;
-      vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
-      m = m * m;
-      return 42.0 * dot(m*m, vec4(dot(p0,x0), dot(p1,x1), dot(p2,x2), dot(p3,x3)));
-    }
-
-    void main(){
-      vec2 uv = gl_FragCoord.xy / uRes.xy;
-      vec2 p = (uv - 0.5) * vec2(uRes.x / uRes.y, 1.0);
-
-      vec2 warp = vec2(
-        snoise(vec3(p * ${FX_FREQ.toFixed(3)}, uTime)),
-        snoise(vec3(p * ${FX_FREQ.toFixed(3)} + 5.2, uTime))
-      ) * ${FX_WARP.toFixed(3)};
-
-      float n = snoise(vec3((p + warp) * ${(FX_FREQ * 0.6).toFixed(3)}, uTime * 0.7));
-      n = n * 0.5 + 0.5;
-
-      // Schaerfere Kanten statt weichem Verlauf - wirkt eher nach glaenzender
-      // Flaeche (shadergradient-Vorlage) als nach Wolke.
-      vec3 col = mix(uColor1, uColor2, smoothstep(0.32, 0.42, n));
-      col = mix(col, uColor3, smoothstep(0.58, 0.66, n));
-      // Taeler im Rauschen selbst gehen auf Schwarz, nicht nur der Rand -
-      // sonst wirkt die Flaeche wie eingefaerbt statt wie ein Glow im Dunkeln.
-      col *= smoothstep(-0.3, 0.3, n);
-
-      // Glanzlicht auf den Rauschkaemmen, wie eine Reflexion auf einer
-      // gewoelbten Flaeche - ohne echtes 3D-Licht simuliert.
-      float spec = pow(max(n, 0.0), 6.0);
-      col += vec3(1.0, 0.96, 1.0) * spec * 0.6;
-
-      // Verlauf zur schwarzen Vorlage: Glow links der Mitte, blendet zum Rand aus.
-      float mask = smoothstep(0.62, 0.0, length(p - vec2(-0.25, 0.05)));
-      col *= mask;
-
-      float grain = fract(sin(dot(gl_FragCoord.xy + uTime * 60.0, vec2(12.9898, 78.233))) * 43758.5453);
-      col += (grain - 0.5) * ${FX_GRAIN.toFixed(3)};
-
-      gl_FragColor = vec4(col, 1.0);
-    }
-  `;
-
-  function compile(type, src) {
-    const s = gl.createShader(type);
-    gl.shaderSource(s, src);
-    gl.compileShader(s);
-    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
-      console.error(gl.getShaderInfoLog(s));
-      return null;
-    }
-    return s;
-  }
-
-  const vs = compile(gl.VERTEX_SHADER, vsSrc);
-  const fs = compile(gl.FRAGMENT_SHADER, fsSrc);
-  if (!vs || !fs) return;
-
-  const prog = gl.createProgram();
-  gl.attachShader(prog, vs);
-  gl.attachShader(prog, fs);
-  gl.linkProgram(prog);
-  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
-    console.error(gl.getProgramInfoLog(prog));
-    return;
-  }
-  gl.useProgram(prog);
-
-  // Ein Dreieck ueber den ganzen Clip-Space, kein Rechteck aus zwei Dreiecken noetig.
-  const buf = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
-  const aPos = gl.getAttribLocation(prog, 'aPos');
-  gl.enableVertexAttribArray(aPos);
-  gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
-
-  const uRes    = gl.getUniformLocation(prog, 'uRes');
-  const uTime   = gl.getUniformLocation(prog, 'uTime');
-  const uColor1 = gl.getUniformLocation(prog, 'uColor1');
-  const uColor2 = gl.getUniformLocation(prog, 'uColor2');
-  const uColor3 = gl.getUniformLocation(prog, 'uColor3');
-  gl.uniform3fv(uColor1, toUnit(FX_COLOR1));
-  gl.uniform3fv(uColor2, toUnit(FX_COLOR2));
-  gl.uniform3fv(uColor3, toUnit(FX_COLOR3));
-
-  glResize = function () {
-    const dpr = Math.min(devicePixelRatio || 1, 2);
-    canvas.width  = Math.round(innerWidth * dpr);
-    canvas.height = Math.round(innerHeight * dpr);
-    gl.viewport(0, 0, canvas.width, canvas.height);
-    gl.uniform2f(uRes, canvas.width, canvas.height);
-  };
-
-  glFrame = function (tSec) {
-    gl.uniform1f(uTime, tSec * FX_SPEED);
-    gl.drawArrays(gl.TRIANGLES, 0, 3);
-  };
-
-  glReady = true;
-  } // Ende setupGl()
-
-  // ==== Variante B: gemalter Nebel (Canvas 2D) ==============================
-  // Weiche, langsam driftende Blobs statt einer Formel - wirkt eher gemalt
-  // als berechnet. 'lighter' laesst Ueberlappungen aufhellen wie echtes Licht.
-  const NEB_BLOBS = [
-    { color: '108,11,169', x: .32, y: .38, r: .48, ax: .07, ay: .05, per: 23, ph: 0 },
-    { color: '193,66,219', x: .62, y: .52, r: .40, ax: .05, ay: .06, per: 31, ph: 2.1 },
-    { color: '186,68,225', x: .48, y: .28, r: .34, ax: .04, ay: .07, per: 19, ph: 4.4 },
-  ];
-
-  function drawB(t) {
-    const w = innerWidth, h = innerHeight;
-    ctx2d.globalCompositeOperation = 'source-over';
-    ctx2d.fillStyle = '#0E0712';
-    ctx2d.fillRect(0, 0, w, h);
-    ctx2d.globalCompositeOperation = 'lighter';
-    for (const b of NEB_BLOBS) {
-      const cx = (b.x + Math.sin(t / b.per + b.ph) * b.ax) * w;
-      const cy = (b.y + Math.cos(t / b.per * 1.3 + b.ph) * b.ay) * h;
-      const r = b.r * Math.min(w, h);
-      const g = ctx2d.createRadialGradient(cx, cy, 0, cx, cy, r);
-      g.addColorStop(0, `rgba(${b.color},.55)`);
-      g.addColorStop(1, `rgba(${b.color},0)`);
-      ctx2d.fillStyle = g;
-      ctx2d.fillRect(cx - r, cy - r, r * 2, r * 2);
-    }
-    ctx2d.globalCompositeOperation = 'source-over';
-  }
-
-  // ==== Variante C: minimales Spotlicht (Canvas 2D) =========================
-  // Ein einzelner weicher Lichtkegel, der langsam driftet und atmet - naeher
-  // am alten Schwarz als A/B, aber nicht mehr flach.
-  function drawC(t) {
-    const w = innerWidth, h = innerHeight;
-    ctx2d.fillStyle = '#0E0712';
-    ctx2d.fillRect(0, 0, w, h);
-    const cx = w * 0.5 + Math.sin(t / 40) * w * 0.08;
-    const cy = h * 0.35 + Math.cos(t / 55) * h * 0.06;
-    const pulse = 0.85 + Math.sin(t / 6) * 0.15;
-    const r = Math.min(w, h) * 0.42 * pulse;
-    const g = ctx2d.createRadialGradient(cx, cy, 0, cx, cy, r);
-    g.addColorStop(0, 'rgba(108,11,169,.5)');
-    g.addColorStop(1, 'rgba(108,11,169,0)');
-    ctx2d.fillStyle = g;
-    ctx2d.fillRect(0, 0, w, h);
-  }
-
-  // ==== Variante D: 21st.dev-Gradient-Builder-Export (statisches CSS) =======
-  // 1:1 aus dem gelieferten React-Snippet (Copy-CSS-Export von 21st.dev),
-  // nur ohne React: zwei Elemente statt einer Komponente. Per JS erzeugt und
-  // als style-Objekt gesetzt statt in die <style> zu schreiben - eine .css-
-  // Datei parst das '%' in der Data-URI (width='100%') sonst als Fehler,
-  // inline per style-Property (wie im React-Original) geht das Zeichen einfach
-  // durch. Keine Animation: die Vorlage selbst ist ein statischer Verlauf.
-  const dWrap = document.createElement('div');
-  dWrap.id = 'bgfxD';
-  dWrap.setAttribute('aria-hidden', 'true');
-  Object.assign(dWrap.style, {
+  const bgWrap = document.createElement('div');
+  bgWrap.id = 'bgfx';
+  bgWrap.setAttribute('aria-hidden', 'true');
+  Object.assign(bgWrap.style, {
     position: 'fixed', inset: '0', zIndex: '-1',
     width: '100vw', height: '100vh',
-    overflow: 'hidden', display: 'none',
+    overflow: 'hidden',
   });
 
-  const dGrad = document.createElement('div');
-  Object.assign(dGrad.style, {
+  const bgGrad = document.createElement('div');
+  Object.assign(bgGrad.style, {
     position: 'absolute', inset: '0',
     backgroundColor: '#D7D5D5',
     backgroundImage:
@@ -1066,113 +777,36 @@
     backgroundSize: '120px 120px, auto, auto, auto, auto',
     backgroundBlendMode: 'overlay, normal, normal, normal, normal',
   });
-  dWrap.appendChild(dGrad);
+  bgWrap.appendChild(bgGrad);
 
   const SVGNS = 'http://www.w3.org/2000/svg';
-  const dSvg = document.createElementNS(SVGNS, 'svg');
-  dSvg.setAttribute('aria-hidden', 'true');
-  Object.assign(dSvg.style, {
+  const bgSvg = document.createElementNS(SVGNS, 'svg');
+  bgSvg.setAttribute('aria-hidden', 'true');
+  Object.assign(bgSvg.style, {
     position: 'absolute', inset: '0', width: '100%', height: '100%',
     opacity: '0.280', mixBlendMode: 'overlay',
   });
-  const dFilter = document.createElementNS(SVGNS, 'filter');
-  dFilter.setAttribute('id', 'bgfx-d-grain');
-  const dTurb = document.createElementNS(SVGNS, 'feTurbulence');
-  dTurb.setAttribute('type', 'fractalNoise');
-  dTurb.setAttribute('baseFrequency', '0.8');
-  dTurb.setAttribute('numOctaves', '2');
-  dTurb.setAttribute('stitchTiles', 'stitch');
-  dFilter.appendChild(dTurb);
-  const dColorMatrix = document.createElementNS(SVGNS, 'feColorMatrix');
-  dColorMatrix.setAttribute('type', 'saturate');
-  dColorMatrix.setAttribute('values', '0');
-  dFilter.appendChild(dColorMatrix);
-  dSvg.appendChild(dFilter);
-  const dRect = document.createElementNS(SVGNS, 'rect');
-  dRect.setAttribute('width', '100%');
-  dRect.setAttribute('height', '100%');
-  dRect.setAttribute('filter', 'url(#bgfx-d-grain)');
-  dSvg.appendChild(dRect);
-  dWrap.appendChild(dSvg);
+  const bgFilter = document.createElementNS(SVGNS, 'filter');
+  bgFilter.setAttribute('id', 'bgfx-grain');
+  const bgTurb = document.createElementNS(SVGNS, 'feTurbulence');
+  bgTurb.setAttribute('type', 'fractalNoise');
+  bgTurb.setAttribute('baseFrequency', '0.8');
+  bgTurb.setAttribute('numOctaves', '2');
+  bgTurb.setAttribute('stitchTiles', 'stitch');
+  bgFilter.appendChild(bgTurb);
+  const bgColorMatrix = document.createElementNS(SVGNS, 'feColorMatrix');
+  bgColorMatrix.setAttribute('type', 'saturate');
+  bgColorMatrix.setAttribute('values', '0');
+  bgFilter.appendChild(bgColorMatrix);
+  bgSvg.appendChild(bgFilter);
+  const bgRect = document.createElementNS(SVGNS, 'rect');
+  bgRect.setAttribute('width', '100%');
+  bgRect.setAttribute('height', '100%');
+  bgRect.setAttribute('filter', 'url(#bgfx-grain)');
+  bgSvg.appendChild(bgRect);
+  bgWrap.appendChild(bgSvg);
 
-  document.body.appendChild(dWrap);
-
-  // ==== Umschalten + gemeinsame Schleife =====================================
-  function resize2d() {
-    const dpr = Math.min(devicePixelRatio || 1, 2);
-    c2d.width  = Math.round(innerWidth * dpr);
-    c2d.height = Math.round(innerHeight * dpr);
-    ctx2d.setTransform(dpr, 0, 0, dpr, 0, 0);
-  }
-
-  function applyVariant() {
-    const useGl = variant === 'a' && glReady;
-    const useCss = variant === 'd';
-    glCanvas.style.display = useGl ? 'block' : 'none';
-    c2d.style.display = (!useGl && !useCss) ? 'block' : 'none';
-    dWrap.style.display = useCss ? 'block' : 'none';
-  }
-
-  function resizeAll() {
-    if (glReady) glResize();
-    resize2d();
-  }
-
-  function frame(tSec) {
-    if (variant === 'a' && glReady) glFrame(tSec);
-    else if (variant === 'b') drawB(tSec);
-    else if (variant === 'c') drawC(tSec);
-    // 'd' ist statisches CSS, hier gibt es nichts zu zeichnen.
-  }
-
-  addEventListener('resize', resizeAll, { passive: true });
-  resizeAll();
-  applyVariant();
-
-  if (reduce) {
-    frame(0);   // Standbild, keine Bewegung
-  } else {
-    // Pausiert im Hintergrund-Tab: spart Akku, ohne dass es irgendwer sieht.
-    (function loop(t) {
-      if (!document.hidden) frame(t / 1000);
-      requestAnimationFrame(loop);
-    })(0);
-  }
-
-  // ---- Vergleichsleiste (PROTOTYP, siehe Kommentar oben) -------------------
-  const bar = document.createElement('div');
-  bar.id = 'bgSwitcher';
-  bar.innerHTML = '<button id="bgPrev" aria-label="vorherige Variante">‹</button>' +
-                  '<span id="bgLabel"></span>' +
-                  '<button id="bgNext" aria-label="naechste Variante">›</button>';
-  document.body.appendChild(bar);
-  const bgLabel = document.getElementById('bgLabel');
-
-  function updateLabel() {
-    bgLabel.textContent = variant.toUpperCase() + ' — ' + LABELS[variant];
-  }
-
-  function setVariant(v) {
-    variant = v;
-    history.replaceState(null, '', '?bg=' + v + location.hash);
-    applyVariant();
-    updateLabel();
-  }
-
-  function cycle(dir) {
-    const i = VARIANTS.indexOf(variant);
-    setVariant(VARIANTS[(i + dir + VARIANTS.length) % VARIANTS.length]);
-  }
-
-  document.getElementById('bgPrev').onclick = () => cycle(-1);
-  document.getElementById('bgNext').onclick = () => cycle(1);
-  addEventListener('keydown', e => {
-    const t = document.activeElement.tagName;
-    if (t === 'INPUT' || t === 'TEXTAREA' || document.activeElement.isContentEditable) return;
-    if (e.key === 'ArrowLeft') cycle(-1);
-    if (e.key === 'ArrowRight') cycle(1);
-  });
-  updateLabel();
+  document.body.appendChild(bgWrap);
 })();
 </script>
 </body>
