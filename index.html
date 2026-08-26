@@ -34,6 +34,28 @@
        an dieser einen Zahl - vorher standen dafuer 110, 118 und 90 nebeneinander. */
     --nav-h: 118px;
 
+    /* Umschlag der Leiste: 0 = dunkler Grund (Scrim an, Schrift hell),
+       1 = heller Verlauf (Scrim aus, Schrift dunkel). tick() setzt den Wert;
+       ohne JS bleibt es bei 0.
+
+       Gerechnet aus dem letzten Stueck des Fades, gestreckt auf 0..1 (siehe
+       INK_FROM/INK_TO), nicht aus dem ganzen: waehrend das Video ausblendet,
+       wandert der Untergrund von dunkel nach hell. Ein Farbwechsel ueber die
+       volle Strecke haette in der Mitte halbdunkle Schrift auf halbhellem Grund
+       - gemessen unlesbar. Ueber ein kurzes Stueck dauert dieser Moment beim
+       Scrollen den Bruchteil einer Sekunde.
+
+       Scrim und Schriftfarbe haengen beide daran und sind damit gekoppelt:
+       solange abgedunkelt wird, ist die Schrift hell. */
+    --nav-turn: 0;
+
+    /* Schriftfarbe der Menueleiste. Wie podium.global: kein Balken, keine
+       Kaesten hinter den Schriftbloecken — die Leiste steht nackt da und
+       wechselt die Farbe mit dem Untergrund. Bei uns einmal, mit dem Fade:
+       hell auf dem dunklen Video, dunkel auf dem hellen Verlauf danach. */
+    --nav-ink-light: #E8E4EE;
+    --nav-ink-dark:  #150A1C;
+
     /* Platzhalter für die Navigationsschrift. shihiko.com nutzt NB Architekt Std
        (Neubau, kostenpflichtig) — die liegt hier bewusst nicht bei. Sobald die
        echte Schrift da ist: selbst hosten und nur diese Zeile tauschen. */
@@ -160,46 +182,41 @@
     justify-content: space-between;
     gap: clamp(16px, 4vw, 64px);
     padding: 20px clamp(16px, 2.2vw, 34px) 0;
-    color: #D9D9D9;                    /* wie die Referenz: nicht Reinweiß */
+    color: color-mix(in oklab,
+                     var(--nav-ink-dark) calc(var(--nav-turn) * 100%),
+                     var(--nav-ink-light));
     pointer-events: none;              /* der Verlauf faengt sonst Klicks ab */
   }
   .navbar a { pointer-events: auto; }
 
-  /* Abdunkeln muss sein — die Referenz braucht das nicht, weil dort Schwarz
-     unter der Leiste liegt; bei uns laeuft ein Video und darum herum der helle
-     #bgfx-Verlauf. Ohne Abdunklung faellt der Kontrast stellenweise auf 1,00.
-
-     Frueher lag dafuer ein Verlauf ueber die volle Breite (Leistenhoehe + 110 px,
-     also am Desktop rund 1920x197 px). Der hat auch die Bildmitte verdeckt, wo
-     gar keine Schrift steht. Jetzt sitzt die Abdunklung nur hinter den beiden
-     Schriftbloecken: ein weich ausgeblendetes Rechteck, das die Textbox um
-     20 px seitlich und 16 px oben/unten ueberragt.
-
-     Warum blur() und nicht ein radialer Verlauf: die Textboxen sind breite,
-     flache Rechtecke. Eine Ellipse, die sie voll deckt, muesste ueber die Ecken
-     hinauswachsen — gerechnet lag der Textrand bei farthest-corner mit 1,01
-     knapp AUSSERHALB des Vollton-Bereichs. Ein weichgezeichnetes Rechteck haelt
-     den Vollton ueber der ganzen Textbox und blendet erst im Rand aus.
-
-     Die Staerke ist gerechnet, nicht geschaetzt: Schrift rgb(217) auf einem
-     reinweissen Pixel haelt 4,5:1 erst ab 63 % Schwaerzung. Weil dieser Wert
-     unabhaengig vom Untergrund gilt, muss dafuer kein einzelner Frame mehr
-     geprueft werden — es genuegt, die Deckkraft AN DER TEXTKANTE zu messen.
-     Und genau da lag der erste Versuch daneben: mit 14/10 px Rand, 16 px Radius
-     und blur(9) standen an der Ecke von 'e-mail' nur .53 an — 3,2:1, durchgefallen.
-     Der Blur wirkt in der Ecke aus zwei Richtungen, und ein Radius groesser als
-     der Rand schneidet die Textecke zusaetzlich an.
-     Mit 20/16 px, Radius 8 und blur(10) sind es an der schwaechsten Stelle .655
-     und damit 5,0:1. */
-  .navbar :where(.wordmark, .navcols) { position: relative; }
-  .navbar :where(.wordmark, .navcols)::before {
+  /* Solange das Video steht, braucht die helle Schrift Hilfe: gemessen liegt
+     unter den Schriftbloecken die helle Wand aus dem Material mit Luminanz .738
+     (rund rgb 223) — helle Schrift darauf haelt 1,06:1.
+     Schwarz mit .62 drueckt das auf L .095 und damit 5,7:1; gerechnet reichen
+     .53, der Rest ist Reserve fuer andere Frames.
+     Vorher standen dafuer zwei weichgezeichnete Rechtecke hinter Wortmarke und
+     Spalten. Die waren als Kaesten zu sehen. Jetzt ist es ein Verlauf ueber die
+     volle Breite, Vollton bis zur Textunterkante und danach aus - eine
+     abgedunkelte Bildkante statt einer Leiste.
+     Und er verschwindet mit dem Video: ab da liegt der helle Verlauf frei, die
+     Schrift ist dunkel und die Leiste steht nackt da wie in der Referenz. */
+  .navbar::before {
     content: "";
     position: absolute;
-    inset: -16px -20px;
+    top: 0; left: 0; right: 0;
+    /* Vollton nur bis zur Textunterkante, danach die Ausblendung. Mit 64 px
+       Ausblendung stand die Unterkante als Streifen quer im Bild - bei dieser
+       Staerke braucht der Verlauf mehr Weg als der Text hoch ist.
+       Nach oben gedeckelt in svh, nicht fest 230 px: im Handy-Querformat sind
+       390 px Fensterhoehe, dort deckte der feste Wert samt Leiste rund drei
+       Viertel des Bildes ab. */
+    height: calc(var(--nav-h) + min(230px, 20svh));
     z-index: -1;
-    border-radius: 8px;
-    background: rgb(0 0 0 / .72);
-    filter: blur(10px);
+    background: linear-gradient(to bottom,
+      rgb(0 0 0 / .62) 0,
+      rgb(0 0 0 / .62) calc(var(--nav-h) - 8px),
+      rgb(0 0 0 / 0) 100%);
+    opacity: calc(1 - var(--nav-turn));
     pointer-events: none;
   }
 
@@ -529,6 +546,11 @@
   // stehen zu bleiben. Die Frames sind bei FADE_START fertig durchgespielt,
   // der Rest bis 1 ist reine Ausblendzeit.
   const FADE_START = 0.85;
+
+  // Fenster im Ausblenden, in dem die Menueleiste von hell auf dunkel kippt
+  // (Anteil des Fades). Kurz halten - siehe --nav-turn im CSS.
+  const INK_FROM = 0.72;
+  const INK_TO   = 0.88;
 
   // Die Sequenz läuft über den ganzen Scrollweg der Intro und bleibt dabei
   // formatfüllend. Sie wird nicht zur Karte und blendet nicht in einen Titel:
@@ -930,6 +952,12 @@
     const fadeT = Math.max(clamp01((eased - FADE_START) / (1 - FADE_START)), shopFade);
     canvas.style.opacity = String(1 - fadeT);
 
+    // Umschlag der Leiste, aus demselben fadeT gerechnet. Als Variable auf
+    // <html>, damit Scrim und Schriftfarbe an derselben Zahl haengen. Keine
+    // CSS-Transition: die wuerde gegen den Scroll nachlaufen.
+    const ink = clamp01((fadeT - INK_FROM) / (INK_TO - INK_FROM));
+    document.documentElement.style.setProperty('--nav-turn', ink.toFixed(3));
+
     if (p >= 1) {
       shopInner.style.transform = 'none';   // scharf und bedienbar, sobald angekommen
       shopInner.style.opacity = '1';
@@ -979,6 +1007,7 @@
     draw(1);                              // letztes Bild, keine Bewegung
     // Ohne Scroll-Animation direkt den Endzustand zeigen: Video weg, Sterne da.
     canvas.style.opacity = '0';
+    document.documentElement.style.setProperty('--nav-turn', '1');
     sky.style.opacity = '1';
     skyField.draw(0);                     // Sterne stehen still, keine Bahn, kein Drehen
     shopInner.style.transform = 'none';
