@@ -1,0 +1,26 @@
+<!doctype html><meta charset=utf-8><title>Rahmen</title>
+<style>
+  body{margin:0;background:#111;color:#ccc;font:12px system-ui;display:block}
+  .r{display:inline-block;vertical-align:top;margin:6px}
+  iframe{display:block;flex:none;border:1px solid #444;background:#000}
+</style>
+<div id=w></div>
+<script>
+  const q = new URLSearchParams(location.search);
+  const breite = +(q.get('b') || 390), hoehe = +(q.get('h') || 844);
+  const t = q.get('t') || '0.5';
+  const varianten = (q.get('v') || 'passung=fahrt|passung=motiv').split('|');
+  const basis = q.get('basis') || 'bild=zweivoll&relief=10&dicke=2&boden=0.05&ziel=170000&toleranz=0.012&saum=0';
+  document.getElementById('w').innerHTML = varianten.map((v,i) =>
+    `<div class=r><div>${v}</div><iframe id=f${i} width=${breite} height=${hoehe}
+       src="_face.html?${basis}&${v}"></iframe></div>`).join('');
+  window.stell = async (tt) => {
+    const aus = [];
+    for (let i = 0; i < varianten.length; i++) {
+      const f = document.getElementById('f' + i).contentWindow;
+      f.__face.springe(+tt);
+      aus.push({ v: varianten[i], ...f.__face.zahlen() });
+    }
+    return aus;
+  };
+</script>
