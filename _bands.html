@@ -1,0 +1,147 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Zuschnitt — Vergleich</title>
+<!--
+  Prüfstand, gehört nicht ins Repo.
+
+  Rechnet den Zuschnitt selbst, statt fünf lebende Kopien der Seite in iframes
+  laufen zu lassen: Chrome drosselt requestAnimationFrame in iframes weg, dann
+  steht die Sequenz auf Bild 1 und der Vergleich zeigt nichts. Die Formel unten
+  ist dieselbe wie in draw() — sie wird gegen die echte Seite gegengeprüft.
+-->
+<style>
+  html,body { margin:0; background:#141414; color:#eee;
+              font:12px/1.4 ui-monospace, Consolas, monospace; }
+  header { padding:14px 12px 6px; color:#999; }
+  header b { color:#fff; font-weight:400; }
+  table { border-collapse:collapse; margin:0 12px 20px; }
+  th { color:#bbb; font-weight:400; padding:6px 4px; text-align:center; }
+  th.nr { text-align:right; padding-right:10px; color:#fff; }
+  td { padding:3px 4px; }
+  .phone { position:relative; display:block; }
+  .bar { position:absolute; top:0; left:0; right:0; height:var(--hb);
+         background:#0E0712; z-index:2; }
+  canvas { display:block; }
+</style>
+<header>
+  <b>Zuschnitt ab Bild 115</b> — 390 × 844 Handy, Header 64 px, Bühne 780 px.<br>
+  Links 10 % stehen lassen, eingeblendet über Bild 115 → 127.
+  <div id="chk" style="color:#8fb; margin-top:6px"></div>
+</header>
+<table id="t"></table>
+<script>
+const IW = 1200, IH = 676;
+const W  = 390, HB = 64, SH = 844 - HB;      // Bühne = Fenster minus Header
+const SCALE = 0.30;                           // Anzeigemaßstab im Prüfstand
+
+// --- dieselbe Rechnung wie in draw() -------------------------------------
+const SHIFT_FROM = 115, SHIFT_TO = 127, SHIFT_LEFT = 0.10;
+const CAM_PUSH = 0.06, FADE_START = 0.85, FRAME_COUNT = 176;
+const clamp01 = v => Math.min(1, Math.max(0, v));
+
+function bandHoehe(sicht) {
+  return Math.min(SH, W / (sicht * 12 / IH));   // aspect-ratio: sicht*12/676
+}
+function lage(nr, cssW, cssH, versatz) {
+  const seqT = Math.min(nr / FRAME_COUNT, 1);
+  const sc = Math.max(cssW / IW, cssH / IH) * (1 + CAM_PUSH * seqT);
+  const w = IW * sc, h = IH * sc;
+  const k = versatz ? clamp01((nr - SHIFT_FROM) / (SHIFT_TO - SHIFT_FROM)) : 0;
+  const dxMid = (cssW - w) / 2;
+  const dx = Math.min(0, Math.max(cssW - w, dxMid + (-SHIFT_LEFT * w - dxMid) * k));
+  return { w, h, dx, dy: (cssH - h) / 2 };
+}
+// -------------------------------------------------------------------------
+
+// Zeilen = Zuschnitt-Variante, Spalten = Bildnummer.
+const VARIANTEN = [
+  [20, false, 'formatfüllend, mittig'],
+  [20, true,  'formatfüllend, 10 % links'],
+  [60, true,  '60 % + Füllung, 10 % links'],
+];
+const NRS = [100, 121, 127, 145, 165];
+
+const small = document.createElement('canvas');
+const sctx  = small.getContext('2d');
+
+function zeichne(cv, nr, sicht, versatz, img) {
+  const cssH = bandHoehe(sicht);
+  const c = cv.getContext('2d');
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  c.fillStyle = '#0E0712';
+  c.fillRect(0, 0, W, SH);
+
+  // Füllung, wo das Band die Bühne nicht ausfüllt (wie .fill in der Seite)
+  if (SH - cssH > 1) {
+    small.width = 40; small.height = Math.round(40 * IH / IW);
+    sctx.drawImage(img, 0, 0, small.width, small.height);
+    const fs = Math.max(W / small.width, SH / small.height);
+    const fw = small.width * fs, fh = small.height * fs;
+    c.drawImage(small, (W - fw) / 2, (SH - fh) / 2, fw, fh);
+    c.fillStyle = 'rgba(14, 7, 18, 0.45)';
+    c.fillRect(0, 0, W, SH);
+  }
+
+  // Band
+  const L = lage(nr, W, cssH, versatz);
+  const top = (SH - cssH) / 2;
+  c.save();
+  c.beginPath(); c.rect(0, top, W, cssH); c.clip();
+  c.drawImage(img, L.dx, top + L.dy, L.w, L.h);
+  c.restore();
+}
+
+const bilder = {};
+
+function bau() {
+  const t = document.getElementById('t');
+  t.innerHTML = '<tr><th></th>' + NRS.map(n => `<th>Bild ${n}</th>`).join('') + '</tr>';
+  for (const [sicht, versatz, label] of VARIANTEN) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<th class="nr">${label}</th>`;
+    for (const nr of NRS) {
+      const td = document.createElement('td');
+      const wrap = document.createElement('div');
+      wrap.className = 'phone';
+      wrap.style.setProperty('--hb', (HB * SCALE) + 'px');
+      const cv = document.createElement('canvas');
+      cv.width = W; cv.height = SH;
+      cv.style.width = (W * SCALE) + 'px';
+      cv.style.height = (SH * SCALE) + 'px';
+      cv.dataset.nr = nr; cv.dataset.sicht = sicht; cv.dataset.versatz = versatz ? '1' : '';
+      const bar = document.createElement('div');
+      bar.className = 'bar';
+      wrap.append(bar, cv);
+      td.appendChild(wrap);
+      tr.appendChild(td);
+    }
+    t.appendChild(tr);
+  }
+  // Selbstprüfung: der Ausschnitt darf nie über den Bildrand hinausragen.
+  let schlimm = 0;
+  for (const nr of NRS) for (const [s, v] of VARIANTEN) {
+    const cssH = bandHoehe(s), L = lage(nr, W, cssH, v);
+    schlimm = Math.max(schlimm, -L.dx - (L.w - W), L.dx);
+  }
+  document.getElementById('chk').textContent =
+    'Ausschnitt innerhalb des Bildes: ' + (schlimm <= 0.001 ? 'ja' : 'NEIN (' + schlimm.toFixed(2) + ')')
+    + '  ·  linker Rand bei Bild 165, formatfüllend: '
+    + (() => { const cssH = bandHoehe(20), L = lage(165, W, cssH, true);
+               return ((-L.dx) / L.w * 100).toFixed(1) + ' %'; })()
+    + '  ·  sichtbar formatfüllend: '
+    + (() => { const cssH = bandHoehe(20);
+               const sc = Math.max(W / IW, cssH / IH);
+               return (W / sc / 12).toFixed(1) + ' %'; })();
+}
+
+(async () => {
+  bau();
+  for (const nr of NRS) {
+    const im = new Image();
+    await new Promise(r => { im.onload = r; im.src = `frames/${String(nr).padStart(3,'0')}.jpg`; });
+    bilder[nr] = im;
+    for (const cv of document.querySelectorAll(`canvas[data-nr="${nr}"]`))
+      zeichne(cv, nr, +cv.dataset.sicht, !!cv.dataset.versatz, im);
+  }
+})();
+</script>

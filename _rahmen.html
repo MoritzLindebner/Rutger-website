@@ -10,7 +10,11 @@
   const breite = +(q.get('b') || 390), hoehe = +(q.get('h') || 844);
   const t = q.get('t') || '0.5';
   const varianten = (q.get('v') || 'passung=fahrt|passung=motiv').split('|');
-  const basis = q.get('basis') || 'bild=zweivoll&relief=10&dicke=2&boden=0.05&ziel=170000&toleranz=0.012&saum=0';
+  // Leer als Vorgabe: die abgestimmten Werte sind seit dem 29.08.2026 die
+  // Voreinstellungen in _face.html selbst. Hier noch einmal welche zu setzen
+  // hiess, den Rahmen bei jeder Aenderung nachziehen zu muessen — und einmal
+  // stand hier schon ein veralteter Wert und verfaelschte den Vergleich.
+  const basis = q.get('basis') ?? '';
   document.getElementById('w').innerHTML = varianten.map((v,i) =>
     `<div class=r><div>${v}</div><iframe id=f${i} width=${breite} height=${hoehe}
        src="_face.html?${basis}&${v}"></iframe></div>`).join('');

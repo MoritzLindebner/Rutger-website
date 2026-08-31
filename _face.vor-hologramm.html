@@ -1,0 +1,1690 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Gesichts-Intro — Prototyp</title>
+
+<!-- Prototyp, nicht Teil der Seite. Wie _bands.html: hier wird der Look
+     entschieden, index.html wird erst angefasst, wenn er sitzt.
+
+     DIE FIGUR STEHT IN EINEM RAUM (seit 29.08.2026). Die Fassung davor —
+     Linienbild vor der hellen Wand des Fotos — liegt eingefroren in
+     _face-wand.html und wird nicht mehr weiterentwickelt.
+
+     Drei Sorten Punkte, eine gemeinsame Bildschleife:
+
+       1. FIGUR. Dichtes Zeilenraster, nur wo die Maske "Person" sagt.
+          Ausgelenkt nach Helligkeit. Dazu ein RANDLICHT: jedes Pixel, das zur
+          Person gehoert und einen Hintergrundnachbarn hat, wird voll hell und
+          voll dick. Das ist die Kontur — und der Grund, warum die Figur jetzt
+          als Koerper steht und nicht als Linienfeld.
+       2. BODEN. Ringe in echter Perspektive, ohne Bildmodulation.
+       3. STAUB. Duenn gestreute Punkte auf derselben Ebene.
+
+     TIEFE kommt aus einer TIEFENKARTE, die einmal offline gebacken wurde:
+     `rutger2-voll-tiefe.png` neben dem Foto, 48 KB, aus Depth Anything V2
+     Small (Skript im Scratchpad, im Browser laeuft davon nichts). Hell = nah.
+     Normiert wird nur ueber die Figur, sonst bestimmt die Wand die Skala.
+
+     Warum nicht mehr das Aufblasen der Silhouette (Distanztransformation):
+     es lag an der interessantesten Stelle des Fotos falsch herum. Gemessen
+     mit __face.tiefe() auf denselben Rechtecken —
+        Aufblasen:    Brust 1,000 (gesaettigt) · Hand 0,938 · Kopf 0,811
+        Tiefenkarte:  Hand 0,677 (vorn) · Kopf 0,431 · Brust 0,418
+     Tatsaechlich ist die vorgestreckte Hand das Naechste im ganzen Bild; das
+     Aufblasen schickt duenne Dinge nach hinten, weil es nur die Silhouette
+     kennt. Beim Schieben um 12 px faellt das nicht auf, beim Drehen sofort.
+     Der Rueckfall ist geblieben (`?tiefenkarte=aus`) und ist ehrlicher als
+     vorher: `aufblas` eicht sich jetzt selbst an der halben Figurbreite statt
+     auf feste 42 px, gemessen 0,47..0,89 statt 0,81..1,00. Die Reihenfolge
+     bleibt dort trotzdem falsch — das kann das Verfahren nicht.
+
+     SCHWENKEN. Jeder Punkt traegt seine Entfernung zur Kamera (`Dzc`, in den
+     Einheiten von FERNE), und damit laesst sich aus der Bildschirmposition die
+     Weltposition EXAKT zurueckrechnen — Lochkamera, keine Kleinwinkelnaeherung.
+     Gedreht wird um eine senkrechte Achse durch den Schwerpunkt der Figur:
+     sie steht praktisch still, der Boden zieht um sie herum. Kosten gemessen:
+     0,1 ms. Ein TIEFENPUFFER entscheidet, welcher Punkt vorn liegt (0,6 ms);
+     dabei muss die Figur ueber ihre Rasterluecken hinweg ABGEDICHTET werden,
+     sonst schienen die Bodenringe durch die zwei leeren Zeilen zwischen den
+     Figurzeilen — quer ueber Brust und Schulter.
+
+     Ehrliche Grenze: das ist ein Relief, kein Modell. Es gibt keine
+     Rueckseite und nichts hinter der Hand. Bei ±20 Grad faellt das nicht auf,
+     darueber schon — deshalb schwenkt es und dreht sich nicht.
+
+     Zweiter Kniff: Linien und Partikel sind DASSELBE. Jeder Punkt ist schon
+     ein Partikel und muss zum Zerfall nur losfliegen.
+
+     WICHTIG zur Aufloesung: die Punkte entstehen in BILDSCHIRMpixeln, nicht in
+     Bildpixeln. Zuerst lag das Raster im Quellbild (640 breit) und wurde beim
+     Zeichnen auf die Buehne heruntergerechnet — dabei fiel rund jeder dritte
+     Punkt weg, und das Ergebnis war duenn und dunkel. Deshalb wird das Raster
+     bei jeder Groessenaenderung neu aufgebaut.
+
+     Stellschrauben haengen an der Adresse, wie ?sicht= in index.html:
+       ?muster=zeilen    waagerechte Zeilen statt Ringe (Standard: kreise)
+       ?linien=2..10     Abstand zwischen zwei Linien, in Bildschirmpixeln (4)
+       ?punkte=1..5      Punktabstand laengs der Linie (2)
+       ?dicke=1..3       Strichstaerke in hellen Zonen (2)
+       ?ziel=1e4..4e5    Obergrenze Punktzahl, deckelt grosse Schirme (60000)
+       ?relief=0..60     wie stark die Helligkeit auslenkt (16)
+       ?boden=0..0.5     Grundhelligkeit der Linien im Dunkeln (0.05)
+       ?gamma=0.25..1.5  Kurve der Helligkeit; klein hebt Shirt und Kette (0.6)
+       ?cx= ?cy=         Mittelpunkt der Ringe, 0..1 der Buehne (0.58 / 0.52)
+       -- Der Raum --
+       ?farbe=rot|blau   Farbklima (rot)
+       ?horizont=.1-.95  Waagerechte des Horizonts, Anteil der Hoehe (0.36)
+       ?brenn=100..3000  Brennweite in px; klein = weiter Blick, mehr Kruemmung (560)
+       ?hoehe=0.2..5     Kamerahoehe ueber der Ebene (1)
+       ?ferne=1..40      Abstand der Kamera zum Ringmittelpunkt (12)
+       ?ringe=.03..6     Weltabstand zweier Ringe (0.12)
+       ?bodenx=-2..4     Waagerechte Lage des Fusspunkts, Anteil der Breite (1.9)
+       ?bodenpunkt=.5-8  Punktabstand auf den Ringen, in px (1)
+       ?bodenhell=0..1   Helligkeit der Bodenringe (0.85)
+       ?staub=0..0.5     Anteil Staubpunkte am Budget (0.05)
+       ?anteil=0..1      Anteil des Budgets fuer die Figur (0.6)
+       ?figlinien=1..8   Zeilenabstand der Figur (2)
+       ?figpunkte=1..5   Punktabstand in der Zeile (1)
+       ?figury=0..1      Senkrechte Lage der Figur (0.40)
+       ?aufblas=4..200   ab welchem Randabstand die Tiefe voll ist, in px (42)
+       ?tiefe=0..3       Gesamtstaerke der Tiefe (1)
+       ?schwenk=0..60    Amplitude des Eigenschwenks in Grad (7)
+       ?schwenktempo=0..8  Tempo des Schwenks; ein voller Hin und Zurueck
+                         dauert bei 1 rund 34 Sekunden
+       ?winkel=-60..60   fester Winkel statt Schwenk, fuer Standbilder
+       ?tiefenkarte=aus  ohne Karte bauen, mit dem Aufblasen als Rueckfall
+       ?raum=0..4        Tiefe der Figur als Anteil ihrer Entfernung (1 =
+                         ein Fuenftel, also gut 70 cm bei 3,5 m Abstand)
+       ?zfig=0..40       Entfernung der Figur; 0 = aus dem Bodenkontakt
+       ?zfern=0.2..6     Reichweite der Bodenringe (1 = bis dorthin, wo
+                         zwei Ringe unter einem Pixel auseinanderliegen)
+       ?tiefenpuffer=aus nur zur Gegenprobe: Ringe legen sich ueber die
+                         Schulter, weil dann der letzte Schreiber gewinnt
+       ?randlicht=0..1   Helligkeit der Silhouette (1)
+       ?zerfall=an       den Zerfall wieder einschalten (aus)
+       -- Rest --
+       ?haelfte=links    welche Haelfte zerfaellt (Standard: rechts)
+       ?drift=20..400    wie weit die Partikel fliegen (150)
+       ?einflug=0..600   aus wie weit die Punkte am Anfang einfliegen (220)
+       ?eindauer=0..6000 wie lange der Einflug dauert, in ms (1800)
+       ?atem=0..1        Tiefe des Ruhepulses in Helligkeit und Groesse (0.35)
+       ?tempo=0..4       Geschwindigkeit dieses Pulses (1)
+       ?spur=0..90       wie weit Finger/Maus die Punkte auseinandertreibt (30)
+       ?spurweite=2..20  Radius der Spur, in Zellen a 8 px (7)
+       ?spurdauer=10..400 Lebensdauer eines Spurpunkts, in Bildern (120)
+       ?tint=aus         Rotfaerbung aus (fuer ein bereits gefaerbtes Bild)
+       ?kontrast=aus     Tonwertspreizung aus (zeigt die Vorlage ungespreizt)
+       ?invert=an        Helligkeit umkehren (fuer dunkles Motiv auf hellem Grund)
+       ?bild=eng|ganz|platzhalter   andere Vorlage (Standard: person)
+       ?passung=ganz     ganzes Bildrechteck hineinpassen
+       ?passung=motiv    den Kasten um die PERSON einpassen
+       ?kasten=x,y,b,h   Ausschnitt von Hand (Anteile 0..1); ?kasten=auto sucht selbst
+       ?passung=fahrt    Motiv fensterhoch, Ansicht faehrt quer mit (empfohlen)
+       ?rand=0..0.3      Luft um das Motiv (0.06)
+       ?zoom=0.3..3      Groesse der Figur darin (1)
+       ?saum=0..0.5      Ausklingen der Bildunterkante (0.18, 0 = harte Kante)
+       ?frei=aus         Hintergrund NICHT freistellen
+       ?toleranz=.005-.2 wie weich der Hintergrundverlauf sein darf (0.03)
+       ?schatten=behalten Schlagschatten NICHT mitentfernen
+       ?grau=0..0.4      ab welcher Buntheit etwas als Motiv gilt (0.085)
+       ?hgmin=0..0.9     Mindesthelligkeit fuer Hintergrund (0.30)
+       ?schaerfe=0..2.5  lokaler Kontrast, hebt Ringe/Kette/Brillenrand (0.7)
+       ?radius=1..12     Umfeld dafuer, in Pixeln (4)
+       h                 blendet die Messanzeige um -->
+
+<style>
+  :root {
+    --ground: #0B0510;
+    --stage-h: 100svh;   /* svh, nicht vh: sonst springt es, wenn die
+                            Adressleiste des Handys auf- und zugeht */
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--ground); }
+  body {
+    color: #E8E4EE;
+    font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+    /* Waagerechtes Scrollen ist die Abnahmebedingung aus AGENTS.md. */
+    overflow-x: hidden;
+  }
+
+  .intro  { height: 360svh; position: relative; }
+  .stage  { position: sticky; top: 0; height: var(--stage-h); overflow: hidden; }
+  #face { display: block; width: 100%; height: 100%; }
+
+  .hint {
+    position: absolute; z-index: 3; pointer-events: none;
+    left: 50%; bottom: 6svh; transform: translateX(-50%);
+    font-size: .75rem; letter-spacing: .18em; text-transform: uppercase;
+    color: #8B8095; white-space: nowrap; transition: opacity .3s;
+  }
+  .hud {
+    position: fixed; z-index: 9; left: 10px; top: 10px;
+    padding: 8px 10px; border-radius: 6px;
+    background: rgba(11,5,16,.72); color: #C9C1D4;
+    font-size: 11px; line-height: 1.5; white-space: pre; pointer-events: none;
+  }
+  .hud.off { display: none; }
+  @media (pointer: coarse) { .hud { display: none; } }
+
+  .ende {
+    height: 60svh; display: grid; place-items: center;
+    color: #6E6478; font-size: .75rem; letter-spacing: .18em; text-transform: uppercase;
+  }
+</style>
+</head>
+<body>
+
+<section class="intro" id="intro">
+  <div class="stage" id="stage">
+    <canvas id="face"></canvas>
+    <div class="hint" id="hint">scrollen</div>
+  </div>
+</section>
+<div class="ende">hier übernähme später der Shop</div>
+
+<div class="hud" id="hud">lädt …</div>
+
+<script>
+(() => {
+  // ---- Stellschrauben ---------------------------------------------------
+
+  const DAMPING  = 0.085;  // wie index.html — beides soll sich gleich anfuehlen
+  const DIS_FROM = 0.55;   // ab hier zerfaellt es
+  const DIS_TO   = 1.00;
+  const SPREAD   = 0.55;   // zeitliche Staffelung der Partikel
+  // -----------------------------------------------------------------------
+
+  const q = new URLSearchParams(location.search);
+  const zahl = (k, std, lo, hi) => {
+    // Auf null pruefen, nicht auf NaN: Number(null) ist 0, nicht NaN. Ohne
+    // diese Zeile lieferte jeder Parameter, dessen Bereich die Null enthaelt
+    // (relief, boden, cx, cy), stumm 0 statt seines Standardwerts — der Effekt
+    // stand dann ganz ohne Auslenkung da. Gemessen, nicht vermutet.
+    const roh = q.get(k);
+    if (roh === null || roh.trim() === '') return std;
+    const v = Number(roh);
+    return Number.isFinite(v) && v >= lo && v <= hi ? v : std;
+  };
+  const KREISE   = q.get('muster') !== 'zeilen';
+  const LINIEN   = Math.round(zahl('linien', 3, 2, 10));
+  const PUNKTE   = Math.round(zahl('punkte', 1, 1, 5));
+  const RELIEF   = zahl('relief', 10, 0, 60);
+  const BODEN    = zahl('boden', 0.05, 0, 0.5);
+  // Kurve, mit der die Motivhelligkeit auf die Punkthelligkeit geht. Kleiner
+  // als 1 hebt die dunklen Partien — Shirt, Kette, Schattenseite des Gesichts.
+  // Der Grundwert BODEN kann das NICHT: er hebt den Hintergrund gleich mit,
+  // denn dort ist die Helligkeit exakt 0 und der Abstand zum Shirt bleibt.
+  // Diese Kurve laesst die Null in Ruhe und hebt nur, was darueber liegt.
+  const GAMMA    = zahl('gamma', 0.6, 0.25, 1.5);
+  // Ringmittelpunkt. Bereich absichtlich ueber 0..1 hinaus: liegt er MITTEN im
+  // Motiv, entsteht dort ein Strudel aus engen konzentrischen Kreisen — eine
+  // Zielscheibe auf der Brust. In der Vorlage sitzt das Zentrum ausserhalb der
+  // Figur, deshalb laufen die Ringe dort als weite Boegen durchs Bild.
+  const CX       = zahl('cx', 0.42, -1.5, 2.5);
+  const CY       = zahl('cy', 1.25, -1.5, 2.5);
+  const LINKS    = q.get('haelfte') === 'links';
+  const DRIFT    = zahl('drift', 150, 20, 400);
+  // Einflug. Ersetzt die frueheren Aufdecklinie: die Punkte stehen nicht schon
+  // fertig da und werden freigelegt, sondern kommen aus dem Nichts und finden
+  // ihre Position. Vorbild ist das Codrops-Demo "Interactive Particles" — dort
+  // laeuft das im Vertex-Shader, hier auf der CPU, siehe SIN unten.
+  const EINFLUG  = zahl('einflug', 220, 0, 600);    // Streuung am Start, in px
+  const EIN_MS   = zahl('eindauer', 1800, 0, 6000); // Dauer
+  const EIN_VERZ = 0.55;   // Anteil der Dauer, ueber den die Punkte gestaffelt starten
+  // Dauernde Eigenbewegung. Erster Versuch war ein kleiner Kreis je Punkt —
+  // falsch. Im Vorbild ist die seitliche Streuung STATISCH (in ihrem Shader
+  // steht in der xy-Zeile kein uTime); bewegt wird die TIEFE:
+  //   rndz = random(pindex) + snoise(vec2(pindex*0.1, uTime*0.1));
+  //   displaced.z += rndz * (random(pindex) * 2.0 * uDepth);
+  // und dazu pulsiert die Punktgroesse mit
+  //   psize = snoise(vec2(uTime, pindex) * 0.5) + 2.0.
+  // Die Partikel wandern also nach vorn und hinten und werden dabei groesser
+  // und kleiner. Eine 2D-Flaeche hat keine Tiefe; was davon uebrig bleibt und
+  // dasselbe erzeugt, ist ein Puls in Helligkeit und Groesse. Seitwaerts
+  // wandern lassen darf man sie hier ohnehin nicht: das zerfranst die Linien,
+  // und die Linien sind bei uns das Motiv.
+  // Wert = Tiefe des Pulses, 0.35 heisst plus/minus 35 % Helligkeit.
+  const ATEM     = zahl('atem', 0.35, 0, 1);
+  const TEMPO    = zahl('tempo', 1, 0, 4);
+  // Beruehrungsspur, das eigentliche Kennzeichen des Vorbilds. Drei Punkte,
+  // die dort wichtig sind und die ich zuerst alle drei anders hatte:
+  //  1. Die Richtung ist NICHT radial vom Finger weg. Im Shader steht
+  //     cos(angle)/sin(angle) mit einem Zufallswinkel JE PARTIKEL — sie stieben
+  //     jeder in seine eigene Richtung. Radial ergab eine saubere Furche, das
+  //     Vorbild fizzelt.
+  //  2. Die Staerke kommt aus der quadrierten Bewegungsstrecke zwischen zwei
+  //     Zeigerpositionen (`Math.min(dd * 10000, 1)`): ein schneller Wisch
+  //     drueckt voll, ein ruhender Finger fast gar nicht.
+  //  3. Jeder Spurpunkt lebt 120 Bilder mit einer Glockenkurve — 30 % der Zeit
+  //     blendet er auf, 70 % blendet er ab. Reines Abklingen sieht anders aus.
+  const SPUR     = zahl('spur', 30, 0, 90);
+  const SPUR_R   = Math.round(zahl('spurweite', 7, 2, 20));
+  const SPUR_ALT = Math.round(zahl('spurdauer', 120, 10, 400));
+  const TINT     = q.get('tint') !== 'aus';
+  const KONTRAST = q.get('kontrast') !== 'aus';   // Tonwertspreizung
+  // Helligkeit umkehren. Der Effekt lenkt nach HELL aus, die Vorlage ist also
+  // ein helles Motiv auf dunklem Grund. Rutgers Foto ist umgekehrt gebaut
+  // (gemessen: Median 206, Mittel 171 — Wand, weisses Shirt, helle Jacke), da
+  // wuerde die Wand die Grate bilden und das Gesicht flach bleiben.
+  const INVERT = q.get('invert') === 'an';
+  // Einpassung. 'fuellend' schneidet formatfuellend zu (gut fuer einen Kopf),
+  // 'ganz' legt das ganze Bild hinein — dann steht die komplette Figur da und
+  // ringsum laeuft nur das Linienmuster weiter. Auf Schwarz wirkt das nicht wie
+  // ein Briefkasten, sondern wie eine Figur im Raum.
+  const GANZ = q.get('passung') === 'ganz';
+  // 'motiv' passt den Kasten um die PERSON ein, nicht das Bildrechteck. Ein
+  // Querformat-Foto vollstaendig in ein Hochformat-Fenster gelegt ergibt
+  // zwangslaeufig ein schmales Band — die leere Wand ringsum ist aber gar nicht
+  // der Teil, den man sehen will. Freigestellt wird sie ohnehin, also kann sie
+  // auch den Platz raeumen.
+  const MOTIV = (q.get('passung') || 'motiv') === 'motiv';
+  // 'fahrt': Motiv fensterhoch, Ansicht faehrt beim Scrollen quer darueber.
+  // Der einzige Weg, in einem Hochformat-Fenster ein breites Motiv GROSS und
+  // VOLLSTAENDIG zu zeigen — nur eben nacheinander statt gleichzeitig.
+  const FAHRT = q.get('passung') === 'fahrt';
+  // Luft um das Motiv, damit es nicht am Fensterrand klebt.
+  const RAND = zahl('rand', 0, 0, 0.3);
+  // Feinjustierung der Groesse obendrauf, damit sich die Figur im Bild
+  // einrichten laesst, ohne dass ich neu zuschneide.
+  const ZOOM = zahl('zoom', 0.85, 0.3, 3);
+  // Wie weit die Unterkante des Bildes ausklingt, als Anteil der Bildhoehe.
+  // Im Raum wieder an, aber anders gebaut: kein Farbverlauf im Bild (der wuerde
+  // die Maske aufweichen), sondern es fallen zur Fotounterkante hin immer mehr
+  // Figurpunkte weg. Die Person geht dort in Staub ueber, statt abgeschnitten
+  // zu enden.
+  const SAUM = zahl('saum', 0.22, 0, 0.5);
+  // Hintergrund freistellen — seit dem 29.08.2026 AUS als Vorgabe, `?frei=an`
+  // schaltet es wieder ein.
+  //
+  // Die Freistellung war der Versuch, die Figur auf Schwarz zu stellen. Sie hat
+  // aber eine ganze Klasse von Fehlern erzeugt: sie schnitt die beschattete
+  // Unterseite des Unterarms weg (der Arm war innen hohl), sie musste den
+  // Schlagschatten hinter dem Kopf gesondert behandeln, und sie brauchte drei
+  // Regler (`toleranz`, `grau`, `hgmin`), die alle am selben Foto haengen.
+  // Mit der Wand im Bild gibt es nichts wegzuschneiden, also auch keine Loecher.
+  // Die Figur steht dann als Silhouette vor einer belichteten Wand, der
+  // Schlagschatten hinter dem Kopf traegt Tiefe, und das Linienmuster fuellt
+  // das ganze Bild statt in Schwarz auszulaufen.
+  const FREI = q.get('frei') === 'an';
+  const TOL  = zahl('toleranz', 0.012, 0.005, 0.2); // wie weich der Verlauf sein darf
+  // Schlagschatten mit entfernen. Sie sind dunkler als die Wand, das reine
+  // Helligkeitswachstum bleibt an ihrer Kante stehen — der Schatten zaehlt dann
+  // als Motiv und zieht sogar den Motivkasten auf. Die Toleranz hochzudrehen
+  // frisst die Person mit. Der belastbare Unterschied ist die FARBE: Wand und
+  // Schatten sind grau, Haut, Ringe und Kette sind es nicht.
+  const SCHATTEN = q.get('schatten') !== 'behalten';
+  const GRAU = zahl('grau', 0.085, 0, 0.4);   // ab wann etwas als grau gilt
+  // Wie hell etwas mindestens sein muss, um als Wand durchzugehen. Stand lange
+  // auf 0.30 — und riss damit ein Loch in den Unterarm: die beschattete
+  // Unterseite ist grau genug und heller als 0.30, galt also als Wand und
+  // wurde weggeschnitten. Gemessen: 38 918 helle Pixel gegen 50 162 bei 0.50.
+  // Die Wand selbst liegt bei ~0.81, der Abstand ist also reichlich.
+  const HGMIN = zahl('hgmin', 0.50, 0, 0.9);
+  // Lokaler Kontrast. Kleine helle Details — Ringe, Halskette, Brillenrand —
+  // gehen sonst im Umfeld unter: sie sind zwar heller als ihre Nachbarschaft,
+  // aber absolut nicht hell genug, um aus der Kurve herauszustechen. Die
+  // Gesamthelligkeit anzuheben hilft nicht, das hebt den Hintergrund mit.
+  // Hier wird jedes Pixel gegen seine WEICHGEZEICHNETE Umgebung verstaerkt.
+  // 1.2 statt 0.7, Umfeld 3 statt 4: die Halskette ist im Foto ein duenner
+  // Silberstrang ueber schwarzem Shirt und im Handyformat ein bis zwei Pixel
+  // breit. Ueber die Helligkeit ist sie nicht zu holen, nur ueber den Abstand
+  // zur direkten Nachbarschaft — und die muss dafuer eng gefasst sein.
+  // Hoeher getestet (2.2 bei Umfeld 2): dann bekommt der Arm einen harten Rand
+  // und die Flaechen werden koernig.
+  const SCHAERFE = zahl('schaerfe', 1.2, 0, 2.5);
+  const RADIUS = Math.round(zahl('radius', 3, 1, 12));
+  // Ab welchem Ausschlag der lokale Kontrast ueberhaupt greift. Haelt die
+  // Wandstruktur draussen und laesst Kette, Ringe und Brillenrand durch.
+  const SCHWELLE = zahl('schwelle', 0.045, 0, 0.2);
+
+  // ---- Der Raum ---------------------------------------------------------
+  // Die Wand-Fassung liegt eingefroren in _face-wand.html. Hier steht die
+  // Figur freigestellt in einem gerechneten Raum: Boden aus Ringen in
+  // Perspektive, Figur davor, Staub dazwischen.
+  const FARBE = q.get('farbe') === 'blau' ? 'blau' : 'rot';
+  // Waagerechte des Horizonts, als Anteil der Buehnenhoehe. Darunter Boden,
+  // darueber leerer Raum.
+  const HORIZONT = zahl('horizont', 0.36, 0.1, 0.95);
+  // Brennweite in Pixeln und Kamerahoehe. Nur ihr Verhaeltnis bestimmt, wie
+  // schnell die Ringe zum Horizont zusammenruecken; getrennt, weil f allein
+  // die Breite steuert.
+  const BRENN = zahl('brenn', 560, 100, 3000);
+  const HOEHE = zahl('hoehe', 1, 0.2, 5);
+  // Abstand der Kamera zum Mittelpunkt der Ringe und Weltabstand der Ringe.
+  const FERNE = zahl('ferne', 12, 1, 40);
+  const RINGE = zahl('ringe', 0.12, 0.03, 6);
+  const BODENHELL = zahl('bodenhell', 0.85, 0, 1);
+  // Staerke des Aufblasens: bis zu welchem Abstand vom Silhouettenrand (in px)
+  // die Tiefe auf 1 steigt. Grob die halbe Breite eines Unterarms.
+  // 0 = selbst eichen: die halbe Breite der Figur, gemessen als groesster
+  // Abstand zum Silhouettenrand. Fest 42 px liess den Oberkoerper voll
+  // saettigen (gemessen: Brust 1,000 ueber die ganze Flaeche).
+  const AUFBLAS = zahl('aufblas', 0, 0, 200);
+  const TIEFE = zahl('tiefe', 1, 0, 3);        // Gesamtstaerke der Tiefe
+  // Seitliche Verschiebung der Figur gegen den Boden, in Pixeln bei voller
+  // Tiefe. Noch nicht an den Scrollweg gehaengt — erst von Hand ansehen.
+  // Tiefenkarte statt Aufblasen. `?tiefenkarte=aus` erzwingt den Rueckfall.
+  const KARTE = q.get('tiefenkarte') !== 'aus';
+  const ZFIG = zahl('zfig', 0, 0, 40);        // 0 = aus FERNE abgeleitet
+  const RAUM = zahl('raum', 1, 0, 4);         // Streckung der Figurtiefe
+  const ZFERN = zahl('zfern', 1, 0.2, 6);     // Reichweite der Bodenringe
+  // Nur zur Gegenprobe: ohne Tiefenpuffer legen sich die Bodenringe wieder
+  // ueber die Schulter, weil dann gilt "wer zuletzt schreibt, gewinnt".
+  const ZPUFFER = q.get('tiefenpuffer') !== 'aus';
+  const SCHWENK = zahl('schwenk', 7, 0, 60);  // Amplitude in Grad
+  const SCHWENKTEMPO = zahl('schwenktempo', 1, 0, 8);
+  // Fester Winkel fuer Standbilder und Messungen; sonst schwenkt es selbst.
+  const WINKEL = q.has('winkel') ? zahl('winkel', 0, -60, 60) : null;
+  const RAD = Math.PI / 180;
+  const RANDLICHT = zahl('randlicht', 1, 0, 1);
+  // Aufteilung des Punktbudgets: Anteil fuer die Figur, Anteil fuer den Staub,
+  // der Rest geht an den Boden.
+  const ANTEIL = zahl('anteil', 0.6, 0, 1);
+  const STAUB = zahl('staub', 0.05, 0, 0.5);
+  // Senkrechte Lage der Figur in der Buehne (Mitte des Motivkastens).
+  const FIGY = zahl('figury', 0.40, 0, 1);
+  // Raster der Figur. Enger als das alte Ringraster (3/1), weil sie jetzt eine
+  // MASSE sein soll und nicht mehr eine Folge von Linien.
+  const FIGLINIEN = Math.round(zahl('figlinien', 2, 1, 8));
+  const FIGPUNKTE = Math.round(zahl('figpunkte', 1, 1, 5));
+  // Punktabstand auf den Bodenringen, in Bildschirmpixeln.
+  const BODENPUNKT = zahl('bodenpunkt', 1, 0.5, 8);
+  // Waagerechte Lage des Fusspunkts der Ringe.
+  const BODENX = zahl('bodenx', 1.9, -2, 4);
+  // Der Zerfall bleibt gebaut, ist aber aus: erst steht der Raum, dann wird
+  // entschieden, was das Scrollen tun soll.
+  const ZERFALL = q.get('zerfall') === 'an';
+
+  // Umschaltbar ueber ?bild=, damit sich Vorlagen direkt vergleichen lassen.
+  // Feste Liste statt freiem Pfad: der Wert kaeme sonst ungeprueft aus der
+  // Adresse in ein src-Attribut.
+  const BILDER = { person: 'person.webp', eng: 'person-eng.webp',
+                   ganz: 'person-ganz.webp',
+                   zwei: 'rutger2.webp', zweieng: 'rutger2-eng.webp',
+                   zweivoll: 'rutger2-voll.webp', personvoll: 'person-voll.webp' };
+  const SRC = BILDER[q.get('bild')] || 'rutger2-voll.webp';
+  // Strichstaerke. Der entscheidende Regler fuer die Dichte — decayingsuns
+  // eigenes Bedienfeld hat ihn als 'Linethickness'. Ein-Pixel-Punkte decken
+  // bei Linienabstand 4 nur rund ein Achtel der Flaeche ab; gemessen waren
+  // nur 11 % der Buehne hell, obwohl die Spitzen schon 255 erreichten. Erst
+  // dickere Punkte in den Lichtern schliessen die Grate.
+  const DICKE    = Math.round(zahl('dicke', 2, 1, 3));
+  // Obergrenze fuer die Punktzahl. Daraus wird der Rasterabstand gerechnet,
+  // damit grosse Schirme nicht in die Knie gehen (siehe aufbauen()).
+  const ZIEL     = zahl('ziel', 170000, 10000, 400000);
+  // Bildausschnitt von Hand, in Anteilen des Bildes: ?kasten=x,y,b,h.
+  // Der automatisch gefundene Kasten umfasst ALLES, was zur Person gehoert —
+  // also auch den Unterarm, der rechts aus dem Bild laeuft, und die Schulter
+  // ganz links. Dadurch wird der Kasten breiter als hoch, und in einem
+  // Hochformat-Fenster bleibt die Figur zwangslaeufig klein. Ein von Hand
+  // gesetzter, hochkanter Ausschnitt zeigt dieselben Teile deutlich groesser.
+  const KASTEN = (() => {
+    // Voreinstellung ist der Ausschnitt fuer rutger2-voll.webp; ?kasten=auto
+    // schaltet auf die automatische Suche zurueck (noetig bei anderen Fotos).
+    const roh = q.get('kasten') ?? '0.50,0.13,0.47,0.87';
+    if (roh === 'auto') return null;
+    const r = roh.split(',').map(Number);
+    return r.length === 4 && r.every(v => Number.isFinite(v)) && r[2] > 0 && r[3] > 0
+         ? { x: r[0], y: r[1], w: r[2], h: r[3] } : null;
+  })();
+
+  const cv    = document.getElementById('face');
+  const ctx   = cv.getContext('2d', { alpha: false });
+  const intro = document.getElementById('intro');
+  const stage = document.getElementById('stage');
+  const hint  = document.getElementById('hint');
+  const hud   = document.getElementById('hud');
+
+  const clamp01 = v => Math.min(1, Math.max(0, v));
+  const reduce  = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  let cssW = 0, cssH = 0;
+  let target = 0, eased = 0, geladen = false, bereit = false;
+  let W = 0, H = 0, mitte = 0;      // Puffer (kann breiter sein als die Buehne)
+  let SW = 0, SH = 0;               // Buehne, also das, was man sieht
+  let bauSW = 0, bauSH = 0;         // Masse, mit denen zuletzt gebaut wurde
+
+  // Zeichenflaeche in Bildschirmpixeln (dpr 1). Zwei Gruende: die Punkte sind
+  // feines Korn, bei dpr 2 kostete alles das Vierfache fuer keinen sichtbaren
+  // Gewinn — und das Raster soll in der Einheit sitzen, in der es gesehen wird.
+  const pcv  = document.createElement('canvas');
+  const pctx = pcv.getContext('2d');
+  let pimg = null, buf32 = null, zbuf = null;
+
+  // Punkte als getrennte typisierte Felder statt Objekte: ein Feld von
+  // zehntausenden Objekten wuerde den Speicherbereiniger bei jedem Bild
+  // beschaeftigen.
+  let n = 0, Dx, Dy, Dr1, Dr2, Dd, Drgb, Ds, Ep, Ee, Dz, Dart, Dzc, DzcB;
+  // Kameraparameter, die punkte() zum Schwenken braucht. Sie entstehen beim
+  // Aufbau und aendern sich danach nicht.
+  let pBx = 0, pYh = 0, pZax = 1, pXax = 0;
+  let raumWerte = null;   // zur Kontrolle in zahlen()
+  // Zeilenabstand des Figurrasters. Die Figur schreibt ihre Tiefe ueber
+  // so viele Zeilen, damit sie im Tiefenpuffer eine geschlossene Flaeche
+  // ist — auch wenn sie Farbe nur in jede dritte Zeile malt.
+  let pZh = 1;
+  // Die Figurpunkte stehen als erstes im Feld (Figur, dann Randlicht, dann
+  // Boden, dann Staub). Ein Indexvergleich ist damit dasselbe wie
+  // Dart[i] === 0 — spart im Bildlauf einen ganzen Feldzugriff je Punkt,
+  // und bei 60 000 Punkten und 13 parallel gelesenen Feldern zaehlt das.
+  let pNFig = 0;
+  let schwenkTick = 0, winkelJetzt = 0;
+  let skala = 1;   // Rasterfaktor gegenueber der Bezugshoehe 844
+  let freiAnteil = 0;   // Anteil freigestellter Flaeche, zur Kontrolle
+  let letzterKasten = null;   // zuletzt ermittelter Motivkasten, zur Kontrolle
+  let panVon = 0, panBis = 0; // Strecke der Querfahrt, in Pufferpixeln
+  let panX = 0;               // aktuelle Verschiebung, fuer die Zeigerumrechnung
+  let bauZeit = 0, bauPhasen = null;
+  // Zaehlung je Punktsorte, damit sich die Aufteilung des Budgets pruefen
+  // laesst, statt sie zu schaetzen.
+  let sorten = null;
+  let einStart = 0, ein = 1;  // Fortschritt des Einflugs, 1 = fertig
+
+  // Sinustabelle. Der Einflug braucht je Punkt eine Richtung, die Eigenbewegung
+  // je Punkt und Bild zwei Werte — bei 106 000 Punkten waeren das 200 000
+  // Math.sin je Bild. Aus der Tabelle kostet dasselbe zwei Feldzugriffe.
+  // 1024 Eintraege, damit der Index mit & 1023 umlaeuft; ein Viertel davon
+  // (256) ist die Phasenverschiebung fuer den Kosinus.
+  const SIN = new Float32Array(1024);
+  for (let i = 0; i < 1024; i++) SIN[i] = Math.sin(i * Math.PI / 512);
+  let atemTick = 0;
+
+  // Beruehrungsspur. Grobes Feld statt einer Textur — im Vorbild ist es eine
+  // 64x64-Leinwand, hier ein Zahlenfeld mit 8 px Kantenlaenge, also rund 5 000
+  // Zellen fuer ein Handybild. Gespeichert wird nur die STAERKE; die Richtung
+  // bringt jeder Punkt selbst mit (siehe SPUR oben).
+  // ponytail: Zellgroesse ist fest 8, weil im Bildlauf mit >> 3 indiziert wird.
+  // Anpassbar machen hiesse dort eine Division; erst noetig, wenn die Spur zu
+  // grob aussieht.
+  let gw = 0, gh = 0, F = null, spurAktiv = false;
+  // Die Spur ist eine Liste alternder Punkte, kein abklingendes Feld: nur so
+  // bekommt jeder Punkt seine eigene Glockenkurve. Das Feld wird daraus in
+  // jedem Bild neu gezeichnet.
+  const spurPunkte = [];
+  let letzterZeiger = null;
+
+  // Kein Aufwaermlauf. Der erste je gemessene Aufbau kostete 1131 ms, jeder
+  // weitere 187 ms, und die naheliegende Erklaerung war V8: beim ersten
+  // Durchgang laufen die Schleifen noch interpretiert. Ein voller Aufbau auf
+  // winziger Flaeche vorweg sollte sie uebersetzen. Gemessen, 5 Laeufe je Seite:
+  // ohne Vorlauf 201 ms bis zum ersten Bild, mit Vorlauf 313 ms — der Vorlauf
+  // kostet mehr, als er spart, und der eigentliche Aufbau wurde davon auch
+  // nicht schneller (151 vs. 174 ms). Verworfen.
+  const img = new Image();
+  img.decoding = 'async';
+  // Tiefenkarte: dieselbe Aufnahme, einmal offline durch Depth Anything V2
+  // gerechnet (hell = nah), Dateiname aus dem Foto abgeleitet. Sie ersetzt das
+  // Aufblasen der Silhouette, das an der interessantesten Stelle des Fotos
+  // falsch herum lag — gemessen am 29.08.2026 mit __face.tiefe():
+  //   Brust 1,000 (gesaettigt) · Hand 0,938 · Kopf 0,811.
+  // Tatsaechlich ist die vorgestreckte Hand das Naechste im ganzen Bild.
+  // Die Karte dreht das um: Hand 172 · Brust 143 · Kopf 112 · Wand 49.
+  // Fehlt die Datei, baut der Effekt unveraendert mit dem Aufblasen weiter.
+  const tImg = new Image();
+  let tiefeDa = false;
+  let offen = KARTE ? 2 : 1;
+  const startenWennFertig = () => {
+    if (--offen > 0) return;
+    geladen = true; resize(); requestAnimationFrame(tick);
+  };
+  img.onload = startenWennFertig;
+  img.onerror = () => { hud.textContent = 'Bild nicht ladbar: ' + SRC; };
+  img.src = SRC;
+  if (KARTE) {
+    tImg.decoding = 'async';
+    tImg.onload = () => { tiefeDa = true; startenWennFertig(); };
+    tImg.onerror = startenWennFertig;   // kein Abbruch, nur flacher
+    tImg.src = SRC.replace(/\.[^.]+$/, '-tiefe.png');
+  }
+
+  // Trennbarer Kastenweichzeichner. Zwei eindimensionale Durchgaenge mit
+  // laufender Summe statt eines echten Kerns: die Kosten haengen nicht am
+  // Radius, und genauer muss es fuer eine Kontrastverstaerkung nicht sein.
+  function weichzeichnen(quelle, w, h, r) {
+    const d = 2 * r + 1;
+    const tmp = new Float32Array(w * h), aus = new Float32Array(w * h);
+    const kx = x => Math.min(w - 1, Math.max(0, x));
+    const ky = y => Math.min(h - 1, Math.max(0, y));
+    for (let y = 0; y < h; y++) {
+      const z = y * w;
+      let summe = 0;
+      for (let x = -r; x <= r; x++) summe += quelle[z + kx(x)];
+      for (let x = 0; x < w; x++) {
+        tmp[z + x] = summe / d;
+        summe -= quelle[z + kx(x - r)];
+        summe += quelle[z + kx(x + r + 1)];
+      }
+    }
+    for (let x = 0; x < w; x++) {
+      let summe = 0;
+      for (let y = -r; y <= r; y++) summe += tmp[ky(y) * w + x];
+      for (let y = 0; y < h; y++) {
+        aus[y * w + x] = summe / d;
+        summe -= tmp[ky(y - r) * w + x];
+        summe += tmp[ky(y + r + 1) * w + x];
+      }
+    }
+    return aus;
+  }
+
+  // Kasten um das Motiv, in Anteilen des Bildes (0..1). Dasselbe Verfahren wie
+  // die Freistellung unten, nur auf einem groben Abbild: von den Ecken her
+  // wachsen lassen, was uebrig bleibt, ist das Motiv.
+  function motivKasten() {
+    const w0 = 200;
+    const h0 = Math.max(1, Math.round(w0 * img.naturalHeight / img.naturalWidth));
+    const c = document.createElement('canvas');
+    c.width = w0; c.height = h0;
+    const cx = c.getContext('2d', { willReadFrequently: true });
+    cx.drawImage(img, 0, 0, w0, h0);
+    const p = cx.getImageData(0, 0, w0, h0).data;
+    const anz0 = w0 * h0;
+    const L = new Float32Array(anz0);
+    const G = new Float32Array(anz0);   // Buntheit: 0 = grau
+    for (let k = 0, i = 0; k < anz0; k++, i += 4) {
+      const r = p[i], g = p[i+1], b = p[i+2];
+      L[k] = (r * 0.299 + g * 0.587 + b * 0.114) / 255;
+      G[k] = (Math.max(r, g, b) - Math.min(r, g, b)) / 255;
+    }
+    const wand = k => SCHATTEN && G[k] < GRAU && L[k] > HGMIN;
+
+    const bg = new Uint8Array(anz0);
+    const st = new Int32Array(anz0);
+    let sp = 0;
+    const saat = k => { if (!bg[k] && L[k] > 0.45) { bg[k] = 1; st[sp++] = k; } };
+    const nimm = (q, l) => !bg[q] && (wand(q) || Math.abs(L[q] - l) < TOL);
+    saat(0); saat(w0 - 1); saat((h0 - 1) * w0); saat(anz0 - 1);
+    while (sp > 0) {
+      const k = st[--sp], l = L[k], x = k % w0;
+      if (x > 0)          { const q = k - 1;  if (nimm(q, l)) { bg[q] = 1; st[sp++] = q; } }
+      if (x < w0 - 1)     { const q = k + 1;  if (nimm(q, l)) { bg[q] = 1; st[sp++] = q; } }
+      if (k >= w0)        { const q = k - w0; if (nimm(q, l)) { bg[q] = 1; st[sp++] = q; } }
+      if (k < anz0 - w0)  { const q = k + w0; if (nimm(q, l)) { bg[q] = 1; st[sp++] = q; } }
+    }
+
+    let x0 = w0, y0 = h0, x1 = -1, y1 = -1;
+    for (let y = 0; y < h0; y++)
+      for (let x = 0; x < w0; x++)
+        if (!bg[y * w0 + x]) {
+          if (x < x0) x0 = x; if (x > x1) x1 = x;
+          if (y < y0) y0 = y; if (y > y1) y1 = y;
+        }
+    // Nichts gefunden (alles als Hintergrund gewachsen): lieber nichts tun als
+    // auf einen unsinnigen Kasten skalieren.
+    if (x1 < 0 || (x1 - x0) < 4 || (y1 - y0) < 4) return null;
+    return { x: x0 / w0, y: y0 / h0,
+             w: (x1 - x0 + 1) / w0, h: (y1 - y0 + 1) / h0 };
+  }
+
+  // ---- Raster aufbauen --------------------------------------------------
+  function aufbauen() {
+    const t0 = performance.now();
+    H = SH;
+    bauSW = SW; bauSH = SH;
+    // Bei der Querfahrt ist der Puffer BREITER als die Buehne: die Figur steht
+    // fensterhoch, und draw() schiebt beim Scrollen ein Fenster darueber. Sonst
+    // ist Puffer gleich Buehne.
+    W = SW;
+
+    // Motivkasten und Pufferbreite muessen VOR der Rasterdichte feststehen:
+    // die Dichte wird aus der Flaeche gerechnet, und bei der Querfahrt ist der
+    // Puffer breiter als die Buehne. Andersherum griff der Deckel ins Leere —
+    // gemessen 131 169 Punkte statt der angepeilten 60 000.
+    const kasten = (MOTIV || FAHRT) ? (KASTEN || motivKasten()) : null;
+    letzterKasten = kasten;
+
+    if (FAHRT && kasten) {
+      // Nach der HOEHE des Motivkastens skalieren, nicht nach beidem: dadurch
+      // steht die Figur fensterhoch. Die Breite ergibt sich daraus und wird zur
+      // Pufferbreite — dort faehrt die Ansicht entlang. Gedeckelt, damit ein
+      // extremes Seitenverhaeltnis den Puffer nicht sprengt.
+      const sf = SH / (kasten.h * img.naturalHeight) * (1 - RAND) * ZOOM;
+      W = Math.max(SW, Math.min(4000, Math.round(img.naturalWidth * sf)));
+    }
+    mitte = W >> 1;
+
+    // Rasterabstand aus einer ZIELZAHL Punkte ableiten, nicht aus festen
+    // Pixeln. Bei festem Abstand waechst die Punktzahl mit der FLAECHE:
+    // gemessen 39 730 Punkte auf 375x844 (1,6 ms je Bild), aber 458 732 auf
+    // 2545x1440 — 40 ms, also 25 Bilder/s.
+    // Ein Faktor aus der HOEHE reichte nicht (immer noch 18,5 ms), denn die
+    // Flaeche waechst in zwei Richtungen. Also die Wurzel aus dem Verhaeltnis:
+    // damit deckelt sich der Aufwand von selbst, auf jedem Schirm.
+    // Unter dem Ziel bleibt k = 1, das Handy sieht also exakt aus wie
+    // eingestellt — die Deckelung greift nur nach oben.
+    const rohZahl = (W * H) / (LINIEN * PUNKTE);
+    const k = Math.max(1, Math.sqrt(rohZahl / ZIEL));
+    const linien = Math.max(2, Math.round(LINIEN * k));
+    const punkt  = Math.max(1, Math.round(PUNKTE * k));
+    const relief = RELIEF * k;
+    const dicke  = Math.max(1, Math.round(DICKE * k));
+    skala = k;
+
+    // Vorlage formatfuellend in die Buehnengroesse legen, dann daraus die
+    // Helligkeiten lesen. Damit stimmt der Zuschnitt in jedem Seitenverhaeltnis,
+    // ohne dass draw() spaeter noch etwas verschieben muesste.
+    const tmp = document.createElement('canvas');
+    tmp.width = W; tmp.height = H;
+    const tctx = tmp.getContext('2d', { willReadFrequently: true });
+    // Grund erst decken, dann das Bild darauf. Wichtig bei 'ganz': ausserhalb
+    // des Bildes waere die Flaeche sonst durchsichtig und damit Helligkeit 0 —
+    // mit ?invert=an wuerde daraus 1 und der leere Raum glühte auf.
+    //
+    // Der Ton kommt aus der ECKE DES FOTOS, nicht aus Weiss oder Schwarz. Mit
+    // festem Weiss blieb der Bildrand als sichtbares Rechteck stehen: die Wand
+    // im Foto ist eben nicht rein weiss, und die Kante dazwischen sprang ins
+    // Auge. So geht der leere Raum nahtlos in den Hintergrund des Fotos ueber.
+    const eck = document.createElement('canvas');
+    eck.width = eck.height = 8;
+    const ectx = eck.getContext('2d', { willReadFrequently: true });
+    ectx.drawImage(img, 0, 0, 8, 8);
+    const e = ectx.getImageData(0, 0, 1, 1).data;
+    tctx.fillStyle = 'rgb(' + e[0] + ',' + e[1] + ',' + e[2] + ')';
+    tctx.fillRect(0, 0, W, H);
+
+    // Bei 'motiv' zuerst grob ermitteln, wo die Person ueberhaupt sitzt. Grob
+    // reicht: 200 px Breite kosten nichts und der Kasten muss nur auf ein paar
+    // Pixel genau stimmen.
+    let s, iw, ih, ix, iy;
+    if (FAHRT && kasten) {
+      s = SH / (kasten.h * img.naturalHeight) * (1 - RAND) * ZOOM;
+      iw = img.naturalWidth * s; ih = img.naturalHeight * s;
+      ix = (W - iw) / 2;
+      iy = H / 2 - (kasten.y + kasten.h / 2) * ih;
+    } else if (kasten) {
+      // So skalieren, dass der Motivkasten ins Fenster passt, und so
+      // verschieben, dass er mittig sitzt. Das Bild ragt dabei ueber den Rand
+      // hinaus — das ist gewollt, dort steht ohnehin nur Wand.
+      s = Math.min(W / (kasten.w * img.naturalWidth),
+                   H / (kasten.h * img.naturalHeight)) * (1 - RAND) * ZOOM;
+      iw = img.naturalWidth * s; ih = img.naturalHeight * s;
+      ix = W / 2 - (kasten.x + kasten.w / 2) * iw;
+      iy = H / 2 - (kasten.y + kasten.h / 2) * ih;
+    } else {
+      s = (GANZ ? Math.min(W / img.naturalWidth, H / img.naturalHeight)
+                : Math.max(W / img.naturalWidth, H / img.naturalHeight)) * ZOOM;
+      iw = img.naturalWidth * s; ih = img.naturalHeight * s;
+      ix = (W - iw) / 2; iy = (H - ih) / 2;
+    }
+    // Senkrechte Lage der Figur frei waehlbar. Die Wand wird ohnehin
+    // weggeschnitten, also muss das Foto die Buehne nicht mehr fuellen — im
+    // Gegenteil: unter der Figur soll Boden sichtbar bleiben. Deshalb kein
+    // Einrasten nach unten mehr (das war noetig, solange die Wand im Bild war)
+    // und keine fortgesetzte Randzeile.
+    if (!FAHRT) {
+      iy = FIGY * H - (kasten ? (kasten.y + kasten.h / 2) * ih : ih / 2);
+      ix = Math.max(W - iw, Math.min(0, ix));
+    }
+
+    tctx.drawImage(img, ix, iy, iw, ih);
+
+    // Die Tiefenkarte mit DEMSELBEN drawImage in ein zweites Canvas legen.
+    // Dann passt sie per Konstruktion pixelgenau zum Foto — kein eigener
+    // Umrechnungsschritt, der auseinanderlaufen koennte. Der Grund ist
+    // Schwarz (= ganz hinten), damit ausserhalb des Fotos nichts nach vorn
+    // springt.
+    let tief = null;
+    if (tiefeDa) {
+      const tk = document.createElement('canvas');
+      tk.width = W; tk.height = H;
+      const kctx = tk.getContext('2d', { willReadFrequently: true });
+      kctx.fillStyle = '#000';
+      kctx.fillRect(0, 0, W, H);
+      kctx.drawImage(tImg, ix, iy, iw, ih);
+      tief = kctx.getImageData(0, 0, W, H).data;
+    }
+    // Fotounterkante in Buehnenpixeln — dort hoert die Person auf, weil das
+    // Foto ein Brustbild ist. Der Uebergang in Staub passiert beim Erzeugen
+    // der Figurpunkte, nicht hier als Farbverlauf: ein Verlauf im Bild wuerde
+    // die Maske mit aufweichen.
+    const fotoUnten = iy + ih;
+
+    // Strecke der Querfahrt: ueber das MOTIV, nicht ueber das Bildrechteck.
+    // Ueber das Rechteck stand die Ansicht am Anfang auf der leeren Wand links —
+    // freigestellt also auf Schwarz, und die ersten Sekunden des Scrollens
+    // zeigten nichts. Jetzt startet sie an der linken Kante der Person und
+    // endet an der rechten.
+    if (FAHRT && kasten && W > SW) {
+      const grenze = v => Math.max(0, Math.min(W - SW, v));
+      panVon = grenze(ix + kasten.x * iw);
+      panBis = grenze(ix + (kasten.x + kasten.w) * iw - SW);
+    } else {
+      panVon = panBis = 0;
+    }
+
+    const px = tctx.getImageData(0, 0, W, H).data;
+    const tVorlage = performance.now();
+
+    pcv.width = W; pcv.height = H;
+    pimg = pctx.createImageData(W, H);
+    buf32 = new Uint32Array(pimg.data.buffer);
+    // Tiefenpuffer. Ohne ihn malen die spaeter erzeugten Bodenringe ueber die
+    // Schulter, sobald die Figur beim Schwenken zur Seite geht.
+    zbuf = new Float32Array(W * H);
+
+    // Feld fuer die Beruehrungsspur, in Pufferpixeln wie alles andere.
+    gw = Math.ceil(W / 8); gh = Math.ceil(H / 8);
+    F = new Float32Array(gw * gh);
+    spurPunkte.length = 0; letzterZeiger = null; spurAktiv = false;
+
+    const anz = W * H;
+    const lum = new Float32Array(anz);
+    const bunt = new Float32Array(anz);   // Buntheit: 0 = grau
+    for (let p = 0, i = 0; p < anz; p++, i += 4) {
+      const r = px[i], g = px[i+1], b = px[i+2];
+      lum[p] = (r * 0.299 + g * 0.587 + b * 0.114) / 255;
+      bunt[p] = (Math.max(r, g, b) - Math.min(r, g, b)) / 255;
+    }
+    const wandArtig = p => SCHATTEN && bunt[p] < GRAU && lum[p] > HGMIN;
+
+
+    // ---- Maske: was gehoert zur Person? ---------------------------------
+    // Frueher hiess das "Hintergrund freistellen" und diente dazu, die Wand auf
+    // Helligkeit 0 zu setzen. Jetzt ist es die TRENNUNG zwischen den beiden
+    // Ebenen: wo die Maske "Person" sagt, entstehen Figurpunkte, sonst Boden.
+    // Damit traegt sie den ganzen Look — ein Loch faellt auf dunklem Grund
+    // sofort auf. Deshalb wird sie immer gerechnet, nicht mehr nur auf Wunsch.
+    //
+    // Verfahren: Bereichswachstum von den ECKEN her, nicht ueber eine feste
+    // Schwelle. Die Wand hat einen Verlauf (links deutlich dunkler), eine feste
+    // Schwelle schnitte mitten hindurch. Das Wachstum folgt weichen Verlaeufen
+    // und bleibt an der harten Kante der Person stehen.
+    // Ecken statt ganzer Raender als Saat: die Arme reichen bis an die
+    // Bildseiten, ein beliebiges Randpixel koennte also die Person selbst sein.
+    const hg = new Uint8Array(anz);           // 1 = Hintergrund
+    let frei = 0;
+    {
+      const stapel = new Int32Array(anz);
+      let sp = 0;
+      // Saat nur, wo es wirklich hell ist — eine dunkle Ecke duerfte sonst
+      // anfangen, die Person aufzufressen.
+      const saat = p => { if (!hg[p] && lum[p] > 0.45) { hg[p] = 1; stapel[sp++] = p; } };
+      const nimm = (q, l) => !hg[q] && (wandArtig(q) || Math.abs(lum[q] - l) < TOL);
+      saat(0); saat(W - 1); saat((H - 1) * W); saat(anz - 1);
+      while (sp > 0) {
+        const p = stapel[--sp];
+        const l = lum[p], x = p % W;
+        if (x > 0)       { const q = p - 1; if (nimm(q, l)) { hg[q] = 1; stapel[sp++] = q; } }
+        if (x < W - 1)   { const q = p + 1; if (nimm(q, l)) { hg[q] = 1; stapel[sp++] = q; } }
+        if (p >= W)      { const q = p - W; if (nimm(q, l)) { hg[q] = 1; stapel[sp++] = q; } }
+        if (p < anz - W) { const q = p + W; if (nimm(q, l)) { hg[q] = 1; stapel[sp++] = q; } }
+      }
+      // Alles unterhalb der Fotokante gehoert nicht zur Person — dort ist gar
+      // kein Foto mehr, sondern die Grundfarbe. Ohne das zaehlt der ganze
+      // Streifen als Motiv, sobald er nicht hell genug fuer die Saat ist.
+      const uy = Math.max(0, Math.min(H, Math.ceil(fotoUnten)));
+      for (let p = uy * W; p < anz; p++) hg[p] = 1;
+      for (let p = 0; p < anz; p++) if (hg[p]) frei++;
+    }
+    // Waagerechte Ausdehnung der Figur — daraus wird weiter unten geeicht, wie
+    // tief sie im Raum sein darf. Ein Mensch ist grob halb so tief wie breit.
+    // Schwerpunkt und Unterkante der Figur. Der Schwerpunkt, nicht die Mitte
+    // des Kastens: die Maske ist hier 374 px breit, also so breit wie die
+    // ganze Buehne (der Arm laeuft rechts aus dem Foto, die Schulter beruehrt
+    // links den Rand). Der Kasten sagt ueber die Lage der Person also nichts.
+    let figSx = 0, figAnz = 0, figU = 0;
+    for (let y = 0; y < H; y++) {
+      const z0 = y * W;
+      for (let x = 0; x < W; x++) {
+        if (hg[z0 + x]) continue;
+        figSx += x; figAnz++;
+        if (y > figU) figU = y;
+      }
+    }
+    const figMitte = figAnz ? figSx / figAnz : W / 2;
+    const tFrei = performance.now();
+
+    // ---- Tiefe: die Silhouette aufblasen --------------------------------
+    // Aus einem einzigen Foto gibt es keine echte Tiefe. Was es gibt, ist die
+    // Silhouette — und je weiter ein Pixel von ihrem Rand entfernt liegt, desto
+    // weiter vorn liegt es an einem Koerper. Das ist die Distanztransformation:
+    // zwei Durchgaenge ueber das Bild (Chamfer 3-4), danach steht in `dist` der
+    // Abstand zum naechsten Hintergrundpixel, in Dritteln eines Pixels.
+    // Die Wurzel darauf macht aus der Kegelform eine Woelbung: steil am Rand,
+    // flach in der Mitte, wie ein Arm.
+    const dist = new Float32Array(anz);
+    {
+      const GROSS = 1e9;
+      for (let p = 0; p < anz; p++) dist[p] = hg[p] ? 0 : GROSS;
+      for (let y = 0; y < H; y++) {
+        const z0 = y * W;
+        for (let x = 0; x < W; x++) {
+          const p = z0 + x;
+          if (dist[p] === 0) continue;
+          let m = dist[p];
+          if (x > 0)              m = Math.min(m, dist[p - 1] + 3);
+          if (y > 0)              m = Math.min(m, dist[p - W] + 3);
+          if (y > 0 && x > 0)     m = Math.min(m, dist[p - W - 1] + 4);
+          if (y > 0 && x < W - 1) m = Math.min(m, dist[p - W + 1] + 4);
+          dist[p] = m;
+        }
+      }
+      for (let y = H - 1; y >= 0; y--) {
+        const z0 = y * W;
+        for (let x = W - 1; x >= 0; x--) {
+          const p = z0 + x;
+          if (dist[p] === 0) continue;
+          let m = dist[p];
+          if (x < W - 1)              m = Math.min(m, dist[p + 1] + 3);
+          if (y < H - 1)              m = Math.min(m, dist[p + W] + 3);
+          if (y < H - 1 && x < W - 1) m = Math.min(m, dist[p + W + 1] + 4);
+          if (y < H - 1 && x > 0)     m = Math.min(m, dist[p + W - 1] + 4);
+          dist[p] = m;
+        }
+      }
+    }
+    // Rand der Silhouette: hoechstens anderthalb Pixel vom Hintergrund weg.
+    // Faellt als Nebenprodukt der Distanztransformation ab, kostet also nichts.
+    const istRand = p => dist[p] > 0 && dist[p] <= 4.5;
+
+    // Tiefe je Pixel, 0 = hinten, 1 = vorn. Zwei Quellen, gleiche Skala.
+    const tiefeP = new Float32Array(anz);
+    if (tief) {
+      // Normiert wird NUR ueber die Figur, mit denselben 2/98-Perzentilen wie
+      // die Tonwertspreizung weiter unten. Ueber das ganze Bild gerechnet
+      // bestimmte die Wand die Skala und die Person bliebe flach — genau
+      // dieser Fehler stand schon einmal in der Spreizung.
+      const hist = new Uint32Array(256);
+      let z = 0;
+      for (let p = 0; p < anz; p++) if (!hg[p]) { hist[tief[p * 4]]++; z++; }
+      let u = 0, o = 255;
+      if (z > 32) {
+        let acc = 0;
+        for (let v = 0; v < 256; v++) { acc += hist[v]; if (acc >= z * 0.02) { u = v; break; } }
+        acc = 0;
+        for (let v = 255; v >= 0; v--) { acc += hist[v]; if (acc >= z * 0.02) { o = v; break; } }
+      }
+      const spanne = Math.max(1, o - u);
+      for (let p = 0; p < anz; p++) tiefeP[p] = clamp01((tief[p * 4] - u) / spanne);
+    } else {
+      // Rueckfall ohne Karte: die Silhouette aufblasen. Je weiter ein Pixel vom
+      // Rand entfernt liegt, desto weiter vorn — die Wurzel macht aus dem Kegel
+      // eine Woelbung. Das ist eine Vermutung ueber die Form, keine Messung:
+      // duenne Dinge landen hinten, auch wenn sie vorn sind. Deshalb ist die
+      // Karte die Vorgabe.
+      let dmax = 0;
+      for (let p = 0; p < anz; p++) if (dist[p] > dmax && dist[p] < 1e8) dmax = dist[p];
+      const aufblas = AUFBLAS > 0 ? AUFBLAS : Math.max(4, dmax / 3);
+      for (let p = 0; p < anz; p++) tiefeP[p] = Math.sqrt(clamp01(dist[p] / 3 / aufblas));
+    }
+    const tTiefe = performance.now();
+
+    // Lokaler Kontrast MIT SCHWELLE. Ohne Schwelle verstaerkt die
+    // Unschaerfemaske jeden Unterschied zur Nachbarschaft — also auch die
+    // Struktur der Wand und das Rauschen der Kamera. Vor heller Wand stand
+    // dadurch die halbe Buehne voller senkrechter Baender; nachgemessen war es
+    // eine Helligkeitsschwankung von rund 6 %, ohne Periodizitaet, und mit
+    // `?schaerfe=0` verschwand sie. Nur wollte ich die Schaerfe ja gerade
+    // wegen Kette und Ringen.
+    // Der Unterschied ist die HOEHE des Ausschlags: Wandstruktur ist flach,
+    // eine Kette auf schwarzem Shirt ist ein Sprung. Alles unterhalb der
+    // Schwelle bleibt liegen, darueber wird voll verstaerkt.
+    if (SCHAERFE > 0) {
+      const weich = weichzeichnen(lum, W, H, RADIUS);
+      for (let p = 0; p < anz; p++) {
+        let d = lum[p] - weich[p];
+        if (d > SCHWELLE) d -= SCHWELLE;
+        else if (d < -SCHWELLE) d += SCHWELLE;
+        else d = 0;
+        lum[p] = clamp01(lum[p] + SCHAERFE * d);
+      }
+    }
+    const tSchaerfe = performance.now();
+
+    // ---- Tonwerte spreizen, NUR ueber dem Motiv -------------------------
+    // Vorher lief die Spreizung ueber das ganze Bild. Da mehr als die Haelfte
+    // davon Wand war, bestimmten deren Werte die Perzentile, und fuer die
+    // Person blieb kaum Spielraum uebrig — die Spreizung tat sichtbar nichts,
+    // und ich habe das zuerst nicht nachgeprueft.
+    let lo = 0, hi = 1;
+    if (KONTRAST) {
+      const hist = new Uint32Array(256);
+      let z = 0;
+      for (let p = 0; p < anz; p++) if (!hg[p]) { hist[(lum[p] * 255) | 0]++; z++; }
+      if (z > 32) {
+        let acc = 0, u = 0, o = 255;
+        for (let v = 0; v < 256; v++) { acc += hist[v]; if (acc >= z * 0.02) { u = v; break; } }
+        acc = 0;
+        for (let v = 255; v >= 0; v--) { acc += hist[v]; if (acc >= z * 0.02) { o = v; break; } }
+        lo = u / 255; hi = Math.max(lo + 0.05, o / 255);
+      }
+    }
+    // KEIN Rauschen auf der Helligkeit. Die Wand hat ueber ihre ganze Breite
+    // nur 24 Stufen (gemessen an der Vorlage: 199..226), das sah nach der
+    // Ursache der senkrechten Baender aus. Zweimal eingebaut, zweimal
+    // nebeneinander verglichen (Staerke 0, 1, 2, 4) — beide Male kein
+    // sichtbarer Unterschied. Die Baender kamen erst von der Strichstaerke
+    // (siehe Ds) und dann vom lokalen Kontrast ohne Schwelle (siehe SCHWELLE).
+    // Nicht ein drittes Mal einbauen.
+    const hell = i => {
+      const p = i >> 2;
+      if (hg[p]) return 0;                    // Hintergrund traegt nichts bei
+      const v = clamp01((lum[p] - lo) / (hi - lo));
+      return INVERT ? 1 - v : v;
+    };
+    freiAnteil = frei / anz;
+
+    // Erst sammeln, dann in typisierte Felder giessen: beim Ringmuster haengt
+    // die Punktzahl davon ab, wie viel jedes Rings ueberhaupt in der Buehne
+    // liegt — das laesst sich nicht vorher ausrechnen, nur zaehlen.
+    // sart: 0 = Figur, 1 = Bodenring, 2 = Staub, 3 = Randlicht der Figur.
+    // Kameraparameter. Stehen hier oben, weil schon die Figur ihre Tiefe
+    // daraus ableitet.
+    const yH = HORIZONT * H;
+    const bx = BODENX * W;
+    const fh = BRENN * HOEHE;
+
+    // szc: Tiefe VOR DER KAMERA, in denselben Einheiten wie FERNE. Damit
+    // laesst sich jeder Punkt exakt auf seine Weltposition zurueckrechnen,
+    // und alle Sorten drehen sich mit derselben Formel.
+    const sx = [], sy = [], sl = [], sz = [], szc = [], sart = [];
+    // Wie weit die Figur weg steht: dort, wo ihre Unterkante den Boden
+    // beruehrt. Das ist die einzige Tiefe, die zum Bild passt.
+    // Vorher stand hier FERNE*0.35 — geraten, und dadurch stand die Figur
+    // HINTER dem Boden, auf dem sie steht: die vorderen Ringe liefen quer
+    // ueber die Brust.
+    const zfig = ZFIG > 0 ? ZFIG : fh / Math.max(1, figU - yH);
+    // Wie tief die Figur ist, als ANTEIL ihrer Entfernung. Physikalisch
+    // gelesen: die Kamera steht HOEHE = 1 ueber dem Boden, eine Welteinheit
+    // ist also rund Augenhoehe (1,6 m), und zfig = 2,2 heisst gut 3,5 m
+    // Abstand. Ein Mensch ist ungefaehr 30 cm tief, mit vorgestrecktem Arm
+    // rund 70 cm — das sind 0,44 Einheiten, also ein knappes Fuenftel.
+    //
+    // NICHT aus der Maskenbreite ableiten, wie zuerst versucht: die ist hier
+    // die ganze Buehne. Daraus wurde eine Figur, die 40 % ihrer Entfernung
+    // tief war, und bei 20 Grad schwang sie heftig aus statt zu schwenken.
+    // ?raum= regelt nach.
+    const reliefTiefe = RAUM * 0.2 * zfig;
+    // Weltposition der Drehachse: senkrecht DURCH DIE FIGUR. Vorher lag sie
+    // bei bx, also beim Ringmittelpunkt — und der steht mit bodenx=1.9 gut
+    // 700 px rechts neben der Buehne. Die Figur schwenkte dadurch weit aus,
+    // statt zu stehen und den Raum um sich ziehen zu lassen.
+    const xAchse = (figMitte - bx) * zfig / BRENN;
+
+    // ---- 1. Figur --------------------------------------------------------
+    // Zeilenraster, nicht Ringe. Im Vorbild ist die Figur eine MASSE mit feiner
+    // waagerechter Struktur; Ringe wuerden hier wieder Linien ergeben, und
+    // genau die haben ihr bisher die eigene Kontur genommen.
+    const figZiel = Math.max(2000, ZIEL * ANTEIL);
+    const motivPx = anz - frei;
+    const kFig = Math.max(1, Math.sqrt(motivPx / (FIGLINIEN * FIGPUNKTE) / figZiel));
+    const figLinien = Math.max(1, Math.round(FIGLINIEN * kFig));
+    const figPunkt  = Math.max(1, Math.round(FIGPUNKTE * kFig));
+    // Uebergang in Staub an der Fotounterkante: das Foto ist ein Brustbild, die
+    // Person hoert dort an einer schnurgeraden Kante auf. Statt eines
+    // Farbverlaufs im Bild (der die Maske aufweichen wuerde) fallen hier
+    // einfach immer mehr Punkte weg, je naeher die Kante kommt.
+    const saumBand = Math.max(1, ih * SAUM);
+    const saumVon = fotoUnten - saumBand;
+    for (let y = 0; y < H; y += figLinien) {
+      const z0 = y * W;
+      const halt = (SAUM > 0 && y > saumVon)
+                 ? clamp01((fotoUnten - y) / saumBand) : 1;
+      for (let x = 0; x < W; x += figPunkt) {
+        const p = z0 + x;
+        if (hg[p]) continue;
+        if (halt < 1 && Math.random() > halt * halt) continue;
+        const l = hell(p * 4);
+        // Tiefe: Abstand zum Silhouettenrand, in Pixeln (dist zaehlt Drittel).
+        // Die Wurzel macht aus dem Kegel eine Woelbung — steil am Rand, flach
+        // in der Mitte, wie ein Arm.
+        const z = tiefeP[p] * TIEFE;
+        sx.push(x); sy.push(y - l * relief); sl.push(l); sz.push(z);
+        szc.push(zfig - tiefeP[p] * reliefTiefe); sart.push(0);
+      }
+    }
+
+    // Randlicht in einem EIGENEN Durchgang, jedes Randpixel einzeln. Ueber das
+    // Zeilenraster oben ging das nicht: die Silhouette ist ein Pixel breit, und
+    // bei Zeilenabstand 2 traf sie nur jede zweite Zeile — gemessen 497 Punkte
+    // fuer den ganzen Umriss, also eine gestrichelte Linie statt einer Kante.
+    // Ein voller Durchgang ueber das Bild kostet einmalig ein paar Millisekunden.
+    if (RANDLICHT > 0) {
+      for (let y = 0; y < H; y++) {
+        const z0 = y * W;
+        const halt = (SAUM > 0 && y > saumVon)
+                   ? clamp01((fotoUnten - y) / saumBand) : 1;
+        for (let x = 0; x < W; x++) {
+          const p = z0 + x;
+          if (!istRand(p)) continue;
+          if (halt < 1 && Math.random() > halt * halt) continue;
+          sx.push(x); sy.push(y); sl.push(hell(p * 4));
+          sz.push(tiefeP[p] * TIEFE);
+          szc.push(zfig - tiefeP[p] * reliefTiefe); sart.push(3);
+        }
+      }
+    }
+
+    // ---- 2. Boden: Ringe in echter Perspektive ---------------------------
+    // Kamera in Hoehe HOEHE ueber der Ebene, Brennweite BRENN, Ringmittelpunkt
+    // FERNE vor der Kamera. Ein Weltkreis mit Radius R:
+    //   X = R·cos t,  Z = FERNE + R·sin t
+    //   Schirm x = bx + BRENN·X/Z,  Schirm y = yH + BRENN·HOEHE/Z
+    // Weil die Kamera AUSSERHALB des Ringfeldes steht (FERNE > groesstes R),
+    // kommt die Vorderkante jedes groesseren Rings naeher heran; ihr Abstand
+    // waechst mit 1/(FERNE-R)^2. Das ist genau das Bild der Vorlage: nach
+    // hinten ruecken die Ringe zusammen, nach vorn laufen sie auseinander.
+    // Abstand, dessen Abbild gerade noch die Bildunterkante trifft.
+    const zNah = fh / Math.max(1, H - yH);
+    const bodenPunkt = Math.max(1, BODENPUNKT * k);
+    const ringAbstand = Math.max(0.02, RINGE);
+    // Wie weit die Ringe ueberhaupt reichen. Zwei benachbarte Ringe landen in
+    // Schirmzeilen, die sich um fh·ringAbstand/Z^2 unterscheiden; jenseits von
+    // Z = sqrt(fh·ringAbstand) liegt das unter einem Pixel, dort sind es keine
+    // Ringe mehr, sondern uebereinandergestapelte Punkte.
+    // Bis zum 29.08.2026 fiel das nicht auf, weil der Boden nur ausserhalb der
+    // Maske erzeugt wurde und die Figur genau auf dem Horizont steht — die
+    // Maske hat den Stapel verdeckt. Ohne sie stand dort ein heller Brei.
+    const zFern = ZFERN * Math.sqrt(fh * ringAbstand);
+
+    // Steht an dieser Stelle die Figur — an BEIDEN Enden des Schwenks und in
+    // der Mitte? Nur dann ist der Bodenpunkt nie zu sehen und kann entfallen.
+    // Die Figur sitzt auf der Drehachse und bewegt sich dabei um unter einem
+    // Pixel, deshalb darf gegen die ungedrehte Maske geprueft werden; der
+    // Boden dagegen wandert bei 7 Grad rund 50 px an ihr vorbei.
+    const wMax = Math.max(SCHWENK, WINKEL === null ? 0 : Math.abs(WINKEL)) * RAD;
+    const wProben = wMax > 0 ? [0, wMax, -wMax] : [0];
+    const verdeckt = (gx, gy, Z) => {
+      for (let j = 0; j < wProben.length; j++) {
+        const co = Math.cos(wProben[j]), si = Math.sin(wProben[j]);
+        const dX = (gx - bx) * Z / BRENN - xAchse;
+        const dZ = Z - zfig;
+        const Zr = zfig - dX * si + dZ * co;
+        if (Zr < 0.05) return false;
+        const nx = bx + (xAchse + dX * co + dZ * si) * BRENN / Zr;
+        const ny = yH + (gy - yH) * Z / Zr;
+        if (nx < 0 || nx >= W || ny < 0 || ny >= H) return false;
+        if (hg[(ny | 0) * W + (nx | 0)]) return false;   // dort ist Hintergrund
+      }
+      return true;
+    };
+    // Ringe, die ganz jenseits davon liegen, gar nicht erst durchlaufen.
+    const rVon = Math.max(ringAbstand,
+                          Math.ceil((FERNE - zFern) / ringAbstand) * ringAbstand);
+    for (let R = rVon; R < FERNE - zNah; R += ringAbstand) {
+      let t = 0, wache = 0;
+      while (t < Math.PI * 2 && wache++ < 400000) {
+        const Z = FERNE + R * Math.sin(t);
+        // Winkelschritt aus der Bogenlaenge AUF DEM SCHIRM: sonst sitzen die
+        // Punkte vorn dicht und hinten weit auseinander.
+        // Die untere Klemme muss klein sein. Bei 0.0015 wurde die vordere,
+        // schnelle Haelfte der grossen Ringe unterabgetastet — gemessen 64
+        // Punkte je Ring statt der noetigen paar hundert, und die Ringe kamen
+        // als duenne Punktreihen heraus statt als Linien.
+        const dt = Math.max(0.00003, bodenPunkt * Z / (BRENN * R));
+        if (Z > zNah && Z < zFern) {
+          const gx = bx + BRENN * R * Math.cos(t) / Z;
+          const gy = yH + fh / Z;
+          if (gx >= 0 && gx < W && gy >= 0 && gy < H) {
+            // Nur erzeugen, was in IRGENDEINEM Schwenkzustand sichtbar wird.
+            // Der Tiefenpuffer allein genuegt nicht: das Figurraster hat
+            // Zeilenabstand 3, und durch die zwei leeren Zeilen dazwischen
+            // schienen die Ringe hindurch — quer ueber die Brust.
+            if (verdeckt(gx, gy, Z)) { t += dt; continue; }
+            sx.push(gx); sy.push(gy);
+            sl.push(BODENHELL * clamp01(1.15 - 0.45 * Z / FERNE));
+            sz.push(0); szc.push(Z); sart.push(1);
+          }
+        }
+        t += dt;
+      }
+    }
+
+    // ---- 3. Staub --------------------------------------------------------
+    // Direkt auf dem SCHIRM gewuerfelt, nicht in der Welt. In der Welt gewuerfelt
+    // landeten 17 000 Proben zu 97 % seitlich neben der Buehne — jeder Punkt der
+    // Flaeche unterhalb des Horizonts ist ohnehin ein Punkt der Bodenebene, der
+    // Umweg ueber Weltkoordinaten bringt hier also nichts.
+    // Leichtes Uebergewicht nach unten (vorn), wie in der Vorlage.
+    const staubZiel = Math.round(ZIEL * STAUB / Math.max(1, k * k));
+    const staubOben = yH + 2;
+    for (let i = 0; i < staubZiel; i++) {
+      const gy = staubOben + Math.pow(Math.random(), 0.75) * (H - staubOben);
+      const gx = Math.random() * W;
+      const pi = (gy | 0) * W + (gx | 0);
+      if (!hg[pi]) continue;
+      sx.push(gx); sy.push(gy);
+      sl.push(BODENHELL * (0.15 + Math.random() * 0.5));
+      // gy liegt immer mindestens 2 px unter dem Horizont, die Division ist
+      // also gutartig.
+      sz.push(0); szc.push(fh / (gy - yH)); sart.push(2);
+    }
+
+    sorten = { figur: 0, rand: 0, boden: 0, staub: 0 };
+    for (let i = 0; i < sart.length; i++) {
+      const a = sart[i];
+      if (a === 0) sorten.figur++; else if (a === 3) sorten.rand++;
+      else if (a === 1) sorten.boden++; else sorten.staub++;
+    }
+    pBx = bx; pYh = yH; pZax = zfig; pXax = xAchse; pZh = figLinien;
+    pNFig = 0;
+    while (pNFig < sart.length && sart[pNFig] === 0) pNFig++;
+    raumWerte = { zfig: +zfig.toFixed(2), xAchse: +xAchse.toFixed(2),
+                  reliefTiefe: +reliefTiefe.toFixed(2),
+                  figMitteX: Math.round(figMitte), figU,
+                  yH: Math.round(yH), bx: Math.round(bx),
+                  zFern: +zFern.toFixed(2), zNah: +zNah.toFixed(2) };
+    const tRaster = performance.now();
+
+    n = sx.length;
+    Dx = new Float32Array(n); Dy = new Float32Array(n);
+    Dr1 = new Float32Array(n); Dr2 = new Float32Array(n);
+    Dd = new Float32Array(n); Drgb = new Uint32Array(n);
+    Ds = new Uint8Array(n);
+    Ep = new Uint16Array(n);   // Phase der Eigenbewegung
+    Ee = new Uint8Array(n);    // Verzoegerung im Einflug, 0..255
+    Dz = new Float32Array(n);  // Tiefe, 0 = Bodenebene
+    // Punktsorte bleibt erhalten (0 Figur, 1 Boden, 2 Staub, 3 Randlicht).
+    // Ohne das laesst sich hinterher nichts mehr nach Sorte auswerten —
+    // und genau das brauchte die Messung Hand gegen Brust.
+    Dart = new Uint8Array(n);
+    Dzc = new Float32Array(n);   // Entfernung zur Kamera, Einheiten wie FERNE
+    DzcB = new Float32Array(n);  // dasselbe / BRENN, damit je Bild EINE Division bleibt
+
+    for (let k = 0; k < n; k++) {
+      Dx[k] = sx[k]; Dy[k] = sy[k]; Dz[k] = sz[k];
+      Dzc[k] = szc[k]; DzcB[k] = szc[k] / BRENN;
+      const art = sart[k];
+      Dart[k] = art;
+      const figur = art === 0 || art === 3;
+
+      // Grundhelligkeit. Beim Randlicht voll: die Silhouette ist die Kontur,
+      // und das ist der eigentliche Grund, warum die Figur jetzt solide steht.
+      let b = art === 3
+            ? Math.max(RANDLICHT, BODEN + (1 - BODEN) * Math.pow(sl[k], GAMMA))
+            : BODEN + (1 - BODEN) * Math.pow(sl[k], GAMMA);
+      // Tiefe zahlt auf die Helligkeit ein: was vorn liegt, ist heller. Das
+      // ersetzt die Perspektive, die ein einzelnes Foto nicht hergibt.
+      if (figur) b = clamp01(b * (0.78 + 0.34 * sz[k]));
+
+      let r, g, bl;
+      if (!TINT) {
+        const i = ((Math.min(H - 1, Math.max(0, sy[k] | 0)) * W)
+                 + Math.min(W - 1, Math.max(0, sx[k] | 0))) * 4;
+        r = px[i]; g = px[i+1]; bl = px[i+2];
+      } else if (FARBE === 'blau') {
+        // Spiegelbild der roten Rampe: Blau zieht frueh auf voll, Gruen folgt,
+        // Rot erst in den Lichtern — dort kippt es ins Weiss, ohne dass die
+        // Mitteltoene ins Violette gehen.
+        bl = Math.round(255 * Math.min(1, b * 1.3));
+        g  = Math.round(255 * Math.pow(b, 1.5) * 0.95);
+        r  = Math.round(255 * Math.pow(b, 3.2) * 0.75);
+      } else {
+        // Rot zieht frueh auf voll, Gruen und Blau erst in den Lichtern: dort
+        // kippt es ins Weissglut, ohne dass die Mitteltoene rosa werden.
+        r  = Math.round(255 * Math.min(1, b * 1.25));
+        g  = Math.round(255 * Math.pow(b, 2.2) * 0.85);
+        bl = Math.round(255 * Math.pow(b, 3.4) * 0.75);
+      }
+      Drgb[k] = (bl << 16) | (g << 8) | r;   // little endian: 0xAABBGGRR
+      // Helle Punkte werden dicker und schliessen sich zu Graten, dunkle
+      // bleiben einzeln stehen — daher die duennen Boegen im Hintergrund.
+      //
+      // Gerundet wird ZUFAELLIG, nicht auf die naechste ganze Zahl: bei
+      // b*dicke = 1.4 wird der Punkt in 60 % der Faelle 1 und in 40 % 2. Mit
+      // festem Runden kippt an der Schwelle die ganze Umgebung auf einmal von
+      // 1x1 auf 2x2 — und weil ein 2x2-Punkt die vierfache Flaeche deckt, lief
+      // quer durch die Wand eine sichtbare Naht. Die Wand hat ueber ihre ganze
+      // Breite nur 24 Helligkeitsstufen (gemessen: 199..226), da liegen diese
+      // Schwellen weit auseinander und werden zu Spalten. Zufaelliges Runden
+      // macht daraus einen Verlauf, ohne einen einzigen Punkt zu kosten.
+      //
+      // Boden und Staub bleiben immer einzelne Pixel: die Bodenringe sollen
+      // duenne, saubere Linien sein, wie in der Vorlage. Das Randlicht bekommt
+      // die volle Staerke, damit die Silhouette als durchgehende Kante steht
+      // und nicht als Punktreihe zerfaellt.
+      Ds[k] = art === 1 || art === 2 ? 1
+            : art === 3 ? dicke
+            : Math.max(1, Math.min(dicke, Math.round(b * dicke + Math.random() - 0.5)));
+
+      // Zerfall. u laeuft von 0 in der Mitte bis 1 am aeusseren Rand der
+      // zerfallenden Seite; aussen loest sich zuerst auf, das liest sich als
+      // Erosion statt als Spaltung.
+      //
+      // Die Franse ist der Punkt: eine harte Trennung bei x >= Mitte liess eine
+      // schnurgerade senkrechte Kante mitten im Gesicht stehen. Mit einem
+      // kleinen Zufall auf der Grenze zerfallen einzelne Punkte schon diesseits
+      // der Mitte und andere jenseits noch nicht — der Rand franst aus, wie in
+      // der Vorlage. 99 heisst: dieser Punkt steht und bewegt sich nie.
+      const u = LINKS ? (mitte - sx[k]) / Math.max(1, mitte)
+                      : (sx[k] - mitte) / Math.max(1, W - mitte);
+      const franse = (Math.random() - 0.5) * 0.34;
+      Dd[k] = (u + franse) <= 0 ? 99
+            : (1 - clamp01(u)) * 0.7 + Math.random() * 0.35;
+      Dr1[k] = Math.random(); Dr2[k] = Math.random();
+
+      Ep[k] = (Math.random() * 1024) | 0;
+      // Staffelung des Einflugs. Ueberwiegend zufaellig, mit leichter Neigung
+      // zur stehenden Seite hin: die Figur setzt sich von der Seite her
+      // zusammen, die spaeter NICHT zerfaellt. Waere die Neigung stark, waere es
+      // wieder eine Linie, die durchs Bild laeuft — genau das soll weg.
+      const pos = LINKS ? sx[k] / W : 1 - sx[k] / W;
+      Ee[k] = clamp01(0.35 * pos + 0.65 * Math.random()) * 255;
+    }
+
+    bauZeit = performance.now() - t0;
+    const e2 = performance.now();
+    bauPhasen = {
+      vorlage:  Math.round(tVorlage - t0),
+      maske:    Math.round(tFrei - tVorlage),
+      tiefe:    Math.round(tTiefe - tFrei),
+      schaerfe: Math.round(tSchaerfe - tTiefe),
+      raster:   Math.round(tRaster - tSchaerfe),
+      felder:   Math.round(e2 - tRaster)
+    };
+    bereit = true;
+  }
+
+  // Der Aufbau kostet je nach Buehnengroesse zweistellige Millisekunden. Beim
+  // Ziehen am Fensterrand feuert der ResizeObserver dutzendfach — deshalb wird
+  // nur die Leinwand sofort angepasst und das Raster verzoegert neu gebaut.
+  let bauTimer = 0;
+
+  // Buehne messen und die Leinwand darauf stellen. Getrennt von resize(), weil
+  // der Pruefhaken unten dasselbe braucht: baut man neu, ohne vorher zu messen,
+  // entsteht das Raster wieder in der alten Groesse.
+  function messen() {
+    const r = stage.getBoundingClientRect();
+    cssW = r.width; cssH = r.height;
+    SW = Math.max(1, Math.round(cssW));
+    SH = Math.max(1, Math.round(cssH));
+    const neu = SW !== bauSW || SH !== bauSH;
+    // dpr bewusst 1: die Punkte sind feines Korn, bei dpr 2 kostete alles das
+    // Vierfache fuer keinen sichtbaren Gewinn.
+    //
+    // Nur zuweisen, wenn sich wirklich etwas geaendert hat: eine Zuweisung an
+    // cv.width LOESCHT die Leinwand, auch wenn derselbe Wert draufsteht. Der
+    // ResizeObserver feuert aber staendig — auf dem Handy schon, wenn die
+    // Adressleiste auf- und zugeht. Bisher fiel das nicht auf, weil das
+    // naechste Bild sofort wieder zeichnet; sichtbar wurde es erst, als die
+    // Schleife fuer Standbilder angehalten war und das Bild schwarz blieb.
+    if (cv.width !== SW || cv.height !== SH) {
+      cv.width = SW; cv.height = SH;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+    }
+    return neu;
+  }
+
+  function resize() {
+    const neu = messen();
+    if (!geladen) return;
+    if (!bereit) { aufbauen(); draw(eased); return; }
+    if (neu) {
+      clearTimeout(bauTimer);
+      bauTimer = setTimeout(() => { aufbauen(); draw(eased); }, 120);
+    }
+  }
+
+  // ---- Beruehrungsspur --------------------------------------------------
+  // Ein Zeigerereignis legt einen neuen Spurpunkt an. Seine Staerke kommt aus
+  // der quadrierten Strecke seit der letzten Position, genau wie im Vorbild
+  // (`Math.min(dd * 10000, 1)`, dort in Bildanteilen). Ein Prozent der Breite
+  // ergibt volle Kraft; ein ruhender Finger legt gar nichts an.
+  function stempeln(schirmX, schirmY) {
+    if (!F || SPUR <= 0) return;
+    // Zeiger in Pufferkoordinaten: die Buehne zeigt den Puffer um panX versetzt.
+    const bx = schirmX - panX, by = schirmY;
+    if (letzterZeiger) {
+      const dx = bx - letzterZeiger[0], dy = by - letzterZeiger[1];
+      const eins = W * 0.012;
+      const kraft = Math.min((dx * dx + dy * dy) / (eins * eins), 1);
+      if (kraft > 0.02) {
+        spurPunkte.push({ x: bx, y: by, alter: 0, kraft });
+        // Deckel: mehr als das passt in SPUR_ALT Bilder ohnehin nicht sinnvoll
+        // uebereinander, und die Liste wird sonst bei einem langen Wisch lang.
+        if (spurPunkte.length > 80) spurPunkte.shift();
+      }
+    }
+    letzterZeiger = [bx, by];
+  }
+
+  // Feld aus der Punktliste neu zeichnen, einmal je Bild. Jeder Punkt altert
+  // dabei und traegt mit einer Glockenkurve bei: die ersten 30 % seines Lebens
+  // blendet er auf, die restlichen 70 % ab. Genau das macht, dass die Spur dem
+  // Finger nachwaechst, statt nur zu verblassen.
+  function spurFeld() {
+    if (!F) return;
+    if (!spurPunkte.length) {
+      if (spurAktiv) { F.fill(0); spurAktiv = false; }
+      return;                              // ruhig: die Spur kostet gar nichts
+    }
+    F.fill(0);
+    for (let i = spurPunkte.length - 1; i >= 0; i--) {
+      const p = spurPunkte[i];
+      if (++p.alter > SPUR_ALT) { spurPunkte.splice(i, 1); continue; }
+      const l = p.alter / SPUR_ALT;
+      const staerke = p.kraft * (l < 0.3
+        ? Math.sin(l / 0.3 * 1.5708)                    // auf
+        : Math.sin((1 - (l - 0.3) / 0.7) * 1.5708));    // ab
+      const cx = p.x / 8, cy = p.y / 8;
+      const x0 = Math.max(0, Math.floor(cx - SPUR_R)), x1 = Math.min(gw - 1, Math.ceil(cx + SPUR_R));
+      const y0 = Math.max(0, Math.floor(cy - SPUR_R)), y1 = Math.min(gh - 1, Math.ceil(cy + SPUR_R));
+      for (let gy = y0; gy <= y1; gy++) {
+        const zeile = gy * gw, dy = gy - cy;
+        for (let gx = x0; gx <= x1; gx++) {
+          const dx = gx - cx;
+          const d = Math.sqrt(dx * dx + dy * dy);
+          if (d > SPUR_R) continue;
+          const k = zeile + gx;
+          const v = staerke * (1 - d / SPUR_R);
+          if (v > F[k]) F[k] = v;          // groesster Wert gewinnt, nicht Summe
+        }
+      }
+    }
+    spurAktiv = true;
+  }
+
+  function readScroll() {
+    const rect = intro.getBoundingClientRect();
+    const total = intro.offsetHeight - stage.offsetHeight;
+    target = total <= 0 ? 0 : clamp01(-rect.top / total);
+  }
+
+  // ---- Zeichnen ---------------------------------------------------------
+  // ponytail: der Pixelpuffer haengt an der vollen Buehnengroesse. Auf 2545x1440
+  // sind das 3,7 Mio. Felder loeschen und 14,6 MB je Bild uebertragen — gemessen
+  // 14,8 ms Median, waehrend die Punktschleife dort nur noch einen Bruchteil
+  // kostet. Bis 1920 bleibt es unter 7 ms, und laut Plan laeuft am Desktop
+  // ohnehin das Video. Decke: ab etwa 2000 px Breite wird der Puffer teuer.
+  // Ausbauweg, falls der Effekt doch auf grosse Schirme soll: Puffer auf ~1400
+  // px deckeln und beim Zeichnen hochskalieren (imageSmoothingEnabled = false,
+  // die Punkte werden dann groebere Bloecke — was zum Look passt).
+  function punkte(dis, ein, wi) {
+    buf32.fill(0);
+    if (ZPUFFER) zbuf.fill(1e9);
+    const kante = dis * (1 + SPREAD);
+    const richtung = LINKS ? -1 : 1;
+    const einAktiv = ein < 1;
+    const einSpanne = 1 - EIN_VERZ;
+    const atem = reduce ? 0 : ATEM;
+    const t16 = atemTick & 1023;
+    const spur = spurAktiv ? SPUR : 0;
+    // Schwenken. Die Punkte liegen in Bildschirmpixeln; zusammen mit der
+    // Kameratiefe laesst sich daraus die Weltposition EXAKT zurueckrechnen
+    // (Lochkamera), also ist das keine Naeherung fuer kleine Winkel:
+    //   X  = (x - bx) · Z / BRENN
+    //   X' = X·cos + (Z - ZAX)·sin
+    //   Z' = ZAX + (Z - ZAX)·cos - X·sin
+    // Gedreht wird um eine senkrechte Achse in der Tiefe der Figur, damit sie
+    // stehen bleibt und der Boden unter ihr wegzieht. Bei Winkel 0 kostet der
+    // ganze Block nichts — wie die Spur auch.
+    const dreht = wi !== 0;
+    const co = Math.cos(wi), si = Math.sin(wi);
+
+    for (let i = 0; i < n; i++) {
+      let x = Dx[i], y = Dy[i], a = 1;
+      const z0 = Dzc[i];
+      let zc = z0;
+
+      if (dreht) {
+        const dX = (x - pBx) * DzcB[i] - pXax;   // Ruecktransformation, exakt
+        const dZ = zc - pZax;
+        const Xr = pXax + dX * co + dZ * si;
+        zc = pZax - dX * si + dZ * co;
+        if (zc < 0.05) continue;                 // hinter der Kamera gelandet
+        const s = 1 / zc;                        // die EINE Division je Punkt und Bild
+        x = pBx + Xr * BRENN * s;
+        y = pYh + (y - pYh) * z0 * s;
+      }
+
+
+      // Einflug: der Punkt kommt aus einer zufaelligen Richtung herein und
+      // bremst in seine Position hinein. Richtung aus der Sinustabelle, Betrag
+      // je Punkt verschieden — sonst laege der Startzustand auf einem Kreis.
+      if (einAktiv) {
+        const g = (ein - (Ee[i] / 255) * EIN_VERZ) / einSpanne;
+        if (g <= 0) continue;                    // dieser Punkt startet spaeter
+        if (g < 1) {
+          const r = 1 - g, rest = r * r * r;     // ausklingend, nicht gleichfoermig
+          const w = (Dr1[i] * 1024) | 0;
+          const d = rest * EINFLUG * (0.3 + Dr2[i] * 1.4);
+          x += d * SIN[(w + 256) & 1023];        // +256 = Kosinus
+          y += d * SIN[w];
+          // Helligkeit zieht schneller an als der Fortschritt. Linear war der
+          // halbe Einflug praktisch unsichtbar: wenige Punkte, und die dunkel.
+          a = g * (2 - g);
+        }
+      }
+
+      // Wer zerfaellt, steht schon beim Aufbau fest (Dd = 99 heisst: steht).
+      // An der Ursprungsposition entschieden, nicht an der aktuellen — sonst
+      // frieren Punkte ein, sobald sie die Mitte ueberqueren.
+      let p = 0;
+      if (dis > 0 && Dd[i] < 90) {
+        p = clamp01(kante - Dd[i] * SPREAD);
+        if (p >= 1) continue;            // verloschen
+        const e = p * p;                 // beschleunigt statt gleichfoermig
+        x += richtung * e * DRIFT * (0.35 + Dr1[i] * 1.3);
+        y += e * DRIFT * 0.55 * (Dr2[i] - 0.65);   // leicht nach oben versetzt
+        a *= 1 - p;
+      }
+
+      let xi = x | 0, yi = y | 0;
+      if (xi < 0 || xi >= W || yi < 0 || yi >= H) continue;
+
+      // Beruehrungsspur. Das Feld gibt nur die STAERKE; die Richtung ist der
+      // eigene Zufallswinkel des Punktes — wie im Vorbild cos(angle)/sin(angle)
+      // mit einem Zufallswert je Partikel. Deshalb stiebt jeder woandershin und
+      // es fizzelt, statt eine saubere Furche zu ziehen.
+      // Abgefragt an der RUHEposition, wie dort auch. Und nur, wenn ueberhaupt
+      // etwas im Feld steht: im Ruhezustand kostet die Spur exakt nichts.
+      if (spur > 0) {
+        const f = F[(yi >> 3) * gw + (xi >> 3)];
+        if (f > 0) {
+          const w = (Dr1[i] * 1024) | 0;
+          const d = f * spur;
+          xi = (xi + d * SIN[(w + 256) & 1023]) | 0;
+          yi = (yi + d * SIN[w]) | 0;
+          if (xi < 0 || xi >= W || yi < 0 || yi >= H) continue;
+          a += f;    // im Vorbild kommen sie dabei nach vorn, hier: heller
+        }
+      }
+
+      // Im Flug duenner werden: ein fliegender 2x2-Block sieht aus wie Konfetti,
+      // ein einzelnes Pixel wie Staub. Gilt fuer Ein- und Ausflug.
+      // VOR dem Puls entschieden: liess man die Groesse mitpulsen, fielen
+      // staendig helle Punkte unter die Schwelle, die Ringlinien trennten sich
+      // voneinander und das ganze Bild war waagerecht gestreift. Im Vorbild
+      // pulst die Groesse mit, dort sitzen die Partikel aber einzeln auf einem
+      // groben Raster; hier schliessen die dicken Punkte die Linien zu Flaechen,
+      // und genau das darf nicht flackern.
+      const bs = (p > 0.3 || a < 0.7) ? 1 : Ds[i];
+
+      // Eigenbewegung, ganz zuletzt und nur auf die Helligkeit.
+      if (atem > 0) a += atem * SIN[(Ep[i] + t16) & 1023];
+      const av = a >= 1 ? 255 : a <= 0 ? 0 : (a * 255) | 0;
+      const farbe = Drgb[i] | (av << 24);
+      // Die Figur im Tiefenpuffer ABDICHTEN. Ihr Raster hat Zeilenabstand
+      // pZh, also malt sie nur in jede pZh-te Zeile; die Zeilen dazwischen
+      // blieben leer, und der Boden dahinter schien hindurch — als Ringboegen
+      // quer ueber Brust und Schulter. Hier wird nur die TIEFE ueber die
+      // Luecke gezogen, keine Farbe: das Bild bleibt genau wie es war, die
+      // Flaeche wird aber dicht.
+      if (ZPUFFER && pZh > 1 && i < pNFig) {
+        for (let h = 1; h < pZh; h++) {
+          const yy = yi + h; if (yy >= H) break;
+          const o = yy * W + xi;
+          if (zc < zbuf[o]) zbuf[o] = zc;
+        }
+      }
+
+      // Tiefentest je Pixel. Frueher galt "wer zuletzt schreibt, gewinnt",
+      // und der Boden wurde nach der Figur erzeugt — beim Schwenken lagen die
+      // Ringe dann ueber der Schulter.
+      if (bs === 1) {
+        const o = yi * W + xi;
+        if (!ZPUFFER) buf32[o] = farbe;
+        else if (zc < zbuf[o]) { zbuf[o] = zc; buf32[o] = farbe; }
+        continue;
+      }
+      for (let by = 0; by < bs; by++) {
+        const yy = yi + by; if (yy >= H) break;
+        const zeile = yy * W;
+        for (let bx = 0; bx < bs; bx++) {
+          const xx = xi + bx; if (xx >= W) break;
+          const o = zeile + xx;
+          if (!ZPUFFER) buf32[o] = farbe;
+          else if (zc < zbuf[o]) { zbuf[o] = zc; buf32[o] = farbe; }
+        }
+      }
+    }
+    pctx.putImageData(pimg, 0, 0);
+  }
+
+  function draw(t) {
+    if (!bereit) return;
+
+    // Der Zerfall ist gebaut, aber aus: erst steht der Raum, dann wird
+    // entschieden, was das Scrollen ausloesen soll. `?zerfall=an` holt ihn zurueck.
+    const dis = ZERFALL ? clamp01((t - DIS_FROM) / (DIS_TO - DIS_FROM)) : 0;
+
+    ctx.fillStyle = '#0B0510';
+    ctx.fillRect(0, 0, SW, SH);
+
+    // Winkel des Schwenks. Fest, wenn ?winkel= gesetzt ist (Standbilder und
+    // Messungen), sonst ein langsames Eigenschwenken ueber die Sinustabelle.
+    // Was der SCROLLWEG treibt, ist noch nicht entschieden — deshalb haengt
+    // hier bewusst nur die Zeit dran.
+    winkelJetzt = WINKEL !== null ? WINKEL
+                : reduce ? 0
+                : SCHWENK * SIN[schwenkTick & 1023];
+    punkte(dis, ein, winkelJetzt * RAD);
+
+    // Querfahrt: das Fenster wandert ueber den breiteren Puffer. Eine eigene
+    // Daempfung braucht es nicht — t ist bereits der gedaempfte Scrollwert.
+    panX = W > SW ? -Math.round(panVon + (panBis - panVon) * clamp01(t)) : 0;
+    ctx.drawImage(pcv, panX, 0);   // 1:1, kein Punkt geht verloren
+  }
+
+  // ---- Schleife ---------------------------------------------------------
+  // laeuft: nur fuer Standbilder von aussen. Ohne das ueberschreibt der naechste
+  // Bilddurchlauf jeden von Hand gesetzten Zwischenstand, bevor der Screenshot
+  // ausgeloest ist.
+  let laeuft = true;
+  const zeiten = [];
+  function tick() {
+    // Nach halt() ist meist noch ein Bild angemeldet. Ohne diese Zeile laeuft
+    // es durch und ueberschreibt genau den Zwischenstand, fuer den angehalten
+    // wurde.
+    if (!laeuft) return;
+    const t0 = performance.now();
+
+    // Der Einflug laeuft ueber die ZEIT, nicht ueber den Scrollweg: er ist das
+    // Erscheinen der Figur, nicht Teil der Erzaehlung. Er beginnt mit dem
+    // ersten Bild nach dem Aufbau.
+    if (einStart === 0) einStart = t0;
+    // Vorn gestaucht (1-(1-x)^2): der Anfang ist die Zeit, in der auf dem Handy
+    // sonst nichts zu sehen waere, also passiert dort am meisten. Gemessen an
+    // Standbildern: die Figur wird bei rund einem Drittel der Dauer lesbar
+    // statt erst bei gut der Haelfte.
+    const roh = (reduce || EIN_MS <= 0) ? 1 : clamp01((t0 - einStart) / EIN_MS);
+    ein = roh * (2 - roh);
+    // 1024 Tabellenschritte sind ein voller Umlauf; bei Tempo 1 sind das rund
+    // 17 s — langsam genug, dass es als Atmen liest und nicht als Flimmern.
+    atemTick += reduce ? 0 : TEMPO;
+    if (atemTick >= 1024) atemTick -= 1024;
+    // Deutlich langsamer als der Puls: ein voller Hin-und-Her-Schwenk dauert
+    // bei Tempo 1 rund 34 Sekunden. Schneller wirkt es wie ein Karussell.
+    schwenkTick += reduce ? 0 : SCHWENKTEMPO * 0.5;
+    if (schwenkTick >= 1024) schwenkTick -= 1024;
+    spurFeld();
+
+    eased += (target - eased) * (reduce ? 1 : DAMPING);
+    if (Math.abs(target - eased) < 0.0002) eased = target;
+    draw(eased);
+    hint.style.opacity = String(Math.max(0, 1 - eased * 6));
+
+    // Gemessen, nicht geschaetzt: Median statt Mittelwert, damit ein einzelner
+    // Ausreisser (Speicherbereinigung) das Bild nicht faelscht.
+    zeiten.push(performance.now() - t0);
+    if (zeiten.length > 200) zeiten.shift();
+    if (zeiten.length > 20 && (zeiten.length & 15) === 0) {
+      const s = [...zeiten].sort((a, b) => a - b);
+      const b = bauPhasen || {};
+      hud.textContent =
+        'Fortschritt ' + (eased * 100).toFixed(1) + ' %' +
+          '   Einflug ' + (ein * 100).toFixed(0) + ' %\n' +
+        'Muster ' + (KREISE ? 'Ringe' : 'Zeilen') +
+          '   Punkte ' + n.toLocaleString('de') + '\n' +
+        'Linie ' + LINIEN + '  Punkt ' + PUNKTE +
+          '  Relief ' + RELIEF + '  Atem ' + ATEM +
+          '  Spur ' + (spurAktiv ? 'an' : 'aus') + '\n' +
+        'Bildzeit Median ' + s[s.length >> 1].toFixed(2) + ' ms\n' +
+        '          95 %   ' + s[Math.floor(s.length * 0.95)].toFixed(2) + ' ms\n' +
+        'Flaeche ' + W + '×' + H + '  Aufbau ' + bauZeit.toFixed(0) + ' ms\n' +
+        '  davon Vorlage ' + b.vorlage + '  Maske ' + b.maske + '  Tiefe ' + b.tiefe + '\n' +
+        '        Schaerfe ' + b.schaerfe + '  Raster ' + b.raster +
+          '  Felder ' + b.felder + '\n' +
+        'h = Anzeige aus';
+    }
+    if (laeuft) requestAnimationFrame(tick);
+  }
+
+  addEventListener('scroll', readScroll, { passive: true });
+  // Ein Zeiger genuegt — pointermove deckt Maus, Stift und Finger ab. Kein
+  // preventDefault: auf dem Handy zieht derselbe Wisch die Seite weiter und
+  // hinterlaesst nebenbei die Spur.
+  const zeiger = e => {
+    const r = stage.getBoundingClientRect();
+    stempeln(e.clientX - r.left, e.clientY - r.top);
+  };
+  stage.addEventListener('pointermove', zeiger, { passive: true });
+  stage.addEventListener('pointerdown', zeiger, { passive: true });
+  new ResizeObserver(() => { resize(); readScroll(); }).observe(stage);
+  addEventListener('keydown', e => { if (e.key === 'h') hud.classList.toggle('off'); });
+  readScroll();
+
+  // Fuer die Messung von aussen (Screenshots an festen Punkten).
+  window.__face = {
+    // e = Stand des Einflugs; fuer Standbilder ist 1 (fertig) das Richtige.
+    springe(v, e = 1) { target = clamp01(v); eased = target; ein = clamp01(e);
+                        draw(eased); },
+    // Spur von aussen setzen, um sie ohne echte Hand pruefen zu koennen.
+    // Zwei Aufrufe hintereinander noetig: die Staerke kommt aus der Strecke
+    // zwischen zwei Positionen, ein einzelner Punkt hat noch keine.
+    tupfen(x, y) { stempeln(x, y); spurFeld(); draw(eased); },
+    halt()   { laeuft = false; },
+    weiter() { if (!laeuft) { laeuft = true; requestAnimationFrame(tick); } },
+    // Baut das Raster sofort neu, ohne die 120-ms-Entprellung abzuwarten.
+    // Nur fuer Messungen: im Hintergrund-Tab streckt der Browser jeden Timer
+    // auf eine Sekunde, und die Abnahme ueber sieben Breiten lief damit in
+    // die Zeitgrenze der Fernsteuerung.
+    neuAufbau() { messen(); aufbauen(); draw(eased);
+                  return { n, W, H, aufbauMs: Math.round(bauZeit) }; },
+    // Mittlere Tiefe der FIGURpunkte in einem Rechteck (Anteile des
+    // Puffers). Damit laesst sich mit einem einzigen Instrument belegen, ob
+    // die Hand naeher steht als die Brust — vor und nach dem Wechsel der
+    // Tiefenquelle, auf denselben Koordinaten.
+    tiefe(x0, y0, x1, y1) {
+      const ax = x0 * W, ay = y0 * H, bx = x1 * W, by = y1 * H;
+      let s = 0, z = 0;
+      for (let i = 0; i < n; i++) {
+        if (Dart[i] !== 0) continue;         // nur die Figur, kein Boden/Staub
+        if (Dx[i] < ax || Dx[i] >= bx || Dy[i] < ay || Dy[i] >= by) continue;
+        s += Dz[i]; z++;
+      }
+      return { punkte: z, mittel: z ? +(s / z).toFixed(3) : null };
+    },
+    zahlen() {
+      const s = [...zeiten].sort((a, b) => a - b);
+      return { n, W, H, muster: KREISE ? 'ringe' : 'zeilen',
+               skala: +skala.toFixed(2), freigestelltProzent: +(freiAnteil*100).toFixed(1),
+               kasten: letzterKasten, buehne: SW + 'x' + SH, puffer: W + 'x' + H,
+               fahrt: Math.round(panVon) + '..' + Math.round(panBis),
+               linien: Math.round(LINIEN * skala), punkte: Math.round(PUNKTE * skala),
+               aufbauMs: Math.round(bauZeit), phasen: bauPhasen, sorten,
+               // Zeit vom Laden der Seite bis zum ersten gezeichneten Bild.
+               // Das ist die Zahl, die auf dem Handy zaehlt.
+               ersteBildMs: Math.round(einStart),
+               ein: +ein.toFixed(2), spur: spurAktiv,
+               tiefenkarte: tiefeDa, winkel: +winkelJetzt.toFixed(2),
+               raum: raumWerte,
+               median: s[s.length >> 1], p95: s[Math.floor(s.length * .95)] };
+    }
+  };
+})();
+</script>
+</body>
+</html>
