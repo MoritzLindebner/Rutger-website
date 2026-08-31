@@ -8,24 +8,54 @@
 <!-- Prototyp, nicht Teil der Seite. Wie _bands.html: hier wird der Look
      entschieden, index.html wird erst angefasst, wenn er sitzt.
 
-     VORBILD: die Frequency-Modulation-Komponente von decayingsun. Auf einem
-     seiner Screenshots sieht man beides uebereinander — oben das echte Foto,
-     unten das Ergebnis. Das ist der ganze Trick, und er ist keine KI:
+     DIE FIGUR STEHT IN EINEM RAUM (seit 29.08.2026). Die Fassung davor —
+     Linienbild vor der hellen Wand des Fotos — liegt eingefroren in
+     _face-wand.html und wird nicht mehr weiterentwickelt.
 
-       Ueber das Bild laufen Linien (Ringe oder Zeilen). Jeder Punkt einer Linie
-       wird ausgelenkt, je heller die Vorlage an dieser Stelle ist. Ueber hellen
-       Flaechen draengen sich die Linien zusammen und stehen als Grat — das
-       modelliert die Form. Im Dunkeln bleiben duenne, gepunktete Boegen stehen;
-       sie verschwinden nicht, sie werden nur schwach.
+     Drei Sorten Punkte, eine gemeinsame Bildschleife:
 
-     Das ist eine Rechnung, kein generiertes Bild: aus jedem Foto exakt
-     reproduzierbar. Deshalb braucht dieser Effekt weder Figma Weave noch
-     TouchDesigner.
+       1. FIGUR. Dichtes Zeilenraster, nur wo die Maske "Person" sagt.
+          Ausgelenkt nach Helligkeit. Dazu ein RANDLICHT: jedes Pixel, das zur
+          Person gehoert und einen Hintergrundnachbarn hat, wird voll hell und
+          voll dick. Das ist die Kontur — und der Grund, warum die Figur jetzt
+          als Koerper steht und nicht als Linienfeld.
+       2. BODEN. Ringe in echter Perspektive, ohne Bildmodulation.
+       3. STAUB. Duenn gestreute Punkte auf derselben Ebene.
 
-     Zweiter Kniff: Linien und Partikel sind DASSELBE. Jeder Punkt einer Linie
-     ist schon ein Partikel und muss zum Zerfall nur losfliegen. Deshalb gibt es
-     keine zwei Ebenen, die aneinander passen muessen, und keine Naht in der
-     Mitte, die auseinanderlaufen kann.
+     TIEFE kommt aus einer TIEFENKARTE, die einmal offline gebacken wurde:
+     `rutger2-voll-tiefe.png` neben dem Foto, 48 KB, aus Depth Anything V2
+     Small (Skript im Scratchpad, im Browser laeuft davon nichts). Hell = nah.
+     Normiert wird nur ueber die Figur, sonst bestimmt die Wand die Skala.
+
+     Warum nicht mehr das Aufblasen der Silhouette (Distanztransformation):
+     es lag an der interessantesten Stelle des Fotos falsch herum. Gemessen
+     mit __face.tiefe() auf denselben Rechtecken —
+        Aufblasen:    Brust 1,000 (gesaettigt) · Hand 0,938 · Kopf 0,811
+        Tiefenkarte:  Hand 0,677 (vorn) · Kopf 0,431 · Brust 0,418
+     Tatsaechlich ist die vorgestreckte Hand das Naechste im ganzen Bild; das
+     Aufblasen schickt duenne Dinge nach hinten, weil es nur die Silhouette
+     kennt. Beim Schieben um 12 px faellt das nicht auf, beim Drehen sofort.
+     Der Rueckfall ist geblieben (`?tiefenkarte=aus`) und ist ehrlicher als
+     vorher: `aufblas` eicht sich jetzt selbst an der halben Figurbreite statt
+     auf feste 42 px, gemessen 0,47..0,89 statt 0,81..1,00. Die Reihenfolge
+     bleibt dort trotzdem falsch — das kann das Verfahren nicht.
+
+     SCHWENKEN. Jeder Punkt traegt seine Entfernung zur Kamera (`Dzc`, in den
+     Einheiten von FERNE), und damit laesst sich aus der Bildschirmposition die
+     Weltposition EXAKT zurueckrechnen — Lochkamera, keine Kleinwinkelnaeherung.
+     Gedreht wird um eine senkrechte Achse durch den Schwerpunkt der Figur:
+     sie steht praktisch still, der Boden zieht um sie herum. Kosten gemessen:
+     0,1 ms. Ein TIEFENPUFFER entscheidet, welcher Punkt vorn liegt (0,6 ms);
+     dabei muss die Figur ueber ihre Rasterluecken hinweg ABGEDICHTET werden,
+     sonst schienen die Bodenringe durch die zwei leeren Zeilen zwischen den
+     Figurzeilen — quer ueber Brust und Schulter.
+
+     Ehrliche Grenze: das ist ein Relief, kein Modell. Es gibt keine
+     Rueckseite und nichts hinter der Hand. Bei ±20 Grad faellt das nicht auf,
+     darueber schon — deshalb schwenkt es und dreht sich nicht.
+
+     Zweiter Kniff: Linien und Partikel sind DASSELBE. Jeder Punkt ist schon
+     ein Partikel und muss zum Zerfall nur losfliegen.
 
      WICHTIG zur Aufloesung: die Punkte entstehen in BILDSCHIRMpixeln, nicht in
      Bildpixeln. Zuerst lag das Raster im Quellbild (640 breit) und wurde beim
@@ -34,17 +64,59 @@
      bei jeder Groessenaenderung neu aufgebaut.
 
      Stellschrauben haengen an der Adresse, wie ?sicht= in index.html:
-       ?muster=zeilen    waagerechte Zeilen statt Ringe (Standard: kreise)
        ?linien=2..10     Abstand zwischen zwei Linien, in Bildschirmpixeln (4)
        ?punkte=1..5      Punktabstand laengs der Linie (2)
-       ?dicke=1..3       Strichstaerke in hellen Zonen (2)
        ?ziel=1e4..4e5    Obergrenze Punktzahl, deckelt grosse Schirme (60000)
        ?relief=0..60     wie stark die Helligkeit auslenkt (16)
-       ?boden=0..0.5     Grundhelligkeit der Linien im Dunkeln (0.13)
-       ?cx= ?cy=         Mittelpunkt der Ringe, 0..1 der Buehne (0.58 / 0.52)
+       -- Form und Licht --
+       ?farbe=rot|blau   Farbklima (rot)
+       Helligkeit = ALBEDO mal BELEUCHTUNG.
+       ?hmaterial=0..1   Sockel des Albedo (0.25)
+       ?hton=0..3        Tonwerte aus dem Foto, fuellt die Flaeche (1.4)
+       ?tonradius=4..200 Radius, ueber den der Tonwert gemessen wird (40)
+       ?hfoto=0..3       feine Struktur: Brille, Kette, Ringe (0.3)
+       ?hdetail=0..60    Verstaerkung dieser Struktur (8)
+       ?hdunkel= ?hhell= Gewicht dunkler/heller Kanten (1.5 / 0.3)
+       ?licht=0..360     Richtung des Lichts in Grad (135 = links oben)
+       ?ambient=0..1     Grundlicht, damit nichts absaeuft (0.2)
+       ?nradius=1..60    BASISWEITE der Normalen in px (12) — der wichtigste
+                         Regler: klein misst Kanten, gross misst Formen
+       ?nskala=5..1500   Steigung je Tiefeneinheit (250)
+       ?hrand=0..2       Streiflicht an der Silhouette (0.1)
+       ?htiefe=0..2      Glut nach Naehe (0.15)
+       ?hoehenlinien=    Tiefenbaender wie auf einer Landkarte (0 = aus)
+       ?hell=0.05..3     Gesamthelligkeit (0.45)
+       ?zeige=maske|ton|detail|albedo|licht|ndl|rand|nah
+                         einen einzelnen Term allein zeichnen — zum Suchen,
+                         welcher Summand ein Bild dominiert
+       -- Figur und Raum --
+       ?figlinien=1..8   Zeilenabstand der Figur (1)
+       ?figpunkte=1..5   Punktabstand in der Zeile (1)
+       ?fein=0..3        ab welcher Struktur jedes Pixel abgetastet wird (0.28)
+       ?figury=0..1      Senkrechte Lage der Figur (0.46)
+       ?staub=0..0.5     Anteil Staubpunkte am Budget (0.03)
+       ?randlicht=0..1   Helligkeit der Silhouette (1)
+       ?tiefe=0..3       Gesamtstaerke der Tiefe (1)
+       ?raum=0..4        Tiefe der Figur als Anteil ihrer Entfernung (1)
+       ?zfig=0..40       Entfernung der Figur (0 = Vorgabe 8)
+       ?brenn=100..3000  Brennweite in px (560)
+       ?schwenk=0..60    Amplitude des Eigenschwenks in Grad (10)
+       ?schwenktempo=0..8  Tempo des Schwenks
+       ?winkel=-60..60   fester Winkel statt Schwenk, fuer Standbilder
+       ?tiefenkarte=aus  ohne Karte bauen, mit dem Aufblasen als Rueckfall
+       ?maske=bunt|tiefe|beides   Verfahren der Freistellung (beides)
+       ?nahtiefe=.05-.95 ab welcher Naehe ein Pixel nie Hintergrund wird (0.42)
+       ?zerfall=an       den Zerfall wieder einschalten (aus)
+       -- Rest --
        ?haelfte=links    welche Haelfte zerfaellt (Standard: rechts)
-       ?scan=0.1..0.9    wann die Aufdecklinie durch ist (0.45)
        ?drift=20..400    wie weit die Partikel fliegen (150)
+       ?einflug=0..600   aus wie weit die Punkte am Anfang einfliegen (220)
+       ?eindauer=0..6000 wie lange der Einflug dauert, in ms (1800)
+       ?atem=0..1        Tiefe des Ruhepulses in Helligkeit und Groesse (0.35)
+       ?tempo=0..4       Geschwindigkeit dieses Pulses (1)
+       ?spur=0..90       wie weit Finger/Maus die Punkte auseinandertreibt (30)
+       ?spurweite=2..20  Radius der Spur, in Zellen a 8 px (7)
+       ?spurdauer=10..400 Lebensdauer eines Spurpunkts, in Bildern (120)
        ?tint=aus         Rotfaerbung aus (fuer ein bereits gefaerbtes Bild)
        ?kontrast=aus     Tonwertspreizung aus (zeigt die Vorlage ungespreizt)
        ?invert=an        Helligkeit umkehren (fuer dunkles Motiv auf hellem Grund)
@@ -143,6 +215,12 @@
   const PUNKTE   = Math.round(zahl('punkte', 1, 1, 5));
   const RELIEF   = zahl('relief', 10, 0, 60);
   const BODEN    = zahl('boden', 0.05, 0, 0.5);
+  // Kurve, mit der die Motivhelligkeit auf die Punkthelligkeit geht. Kleiner
+  // als 1 hebt die dunklen Partien — Shirt, Kette, Schattenseite des Gesichts.
+  // Der Grundwert BODEN kann das NICHT: er hebt den Hintergrund gleich mit,
+  // denn dort ist die Helligkeit exakt 0 und der Abstand zum Shirt bleibt.
+  // Diese Kurve laesst die Null in Ruhe und hebt nur, was darueber liegt.
+  const GAMMA    = zahl('gamma', 0.6, 0.25, 1.5);
   // Ringmittelpunkt. Bereich absichtlich ueber 0..1 hinaus: liegt er MITTEN im
   // Motiv, entsteht dort ein Strudel aus engen konzentrischen Kreisen — eine
   // Zielscheibe auf der Brust. In der Vorlage sitzt das Zentrum ausserhalb der
@@ -150,9 +228,43 @@
   const CX       = zahl('cx', 0.42, -1.5, 2.5);
   const CY       = zahl('cy', 1.25, -1.5, 2.5);
   const LINKS    = q.get('haelfte') === 'links';
-  const SCAN_TO  = zahl('scan', 0.45, 0.1, 0.9);
   const DRIFT    = zahl('drift', 150, 20, 400);
-  const TINT     = q.get('tint') !== 'aus';
+  // Einflug. Ersetzt die frueheren Aufdecklinie: die Punkte stehen nicht schon
+  // fertig da und werden freigelegt, sondern kommen aus dem Nichts und finden
+  // ihre Position. Vorbild ist das Codrops-Demo "Interactive Particles" — dort
+  // laeuft das im Vertex-Shader, hier auf der CPU, siehe SIN unten.
+  const EINFLUG  = zahl('einflug', 220, 0, 600);    // Streuung am Start, in px
+  const EIN_MS   = zahl('eindauer', 1800, 0, 6000); // Dauer
+  const EIN_VERZ = 0.55;   // Anteil der Dauer, ueber den die Punkte gestaffelt starten
+  // Dauernde Eigenbewegung. Erster Versuch war ein kleiner Kreis je Punkt —
+  // falsch. Im Vorbild ist die seitliche Streuung STATISCH (in ihrem Shader
+  // steht in der xy-Zeile kein uTime); bewegt wird die TIEFE:
+  //   rndz = random(pindex) + snoise(vec2(pindex*0.1, uTime*0.1));
+  //   displaced.z += rndz * (random(pindex) * 2.0 * uDepth);
+  // und dazu pulsiert die Punktgroesse mit
+  //   psize = snoise(vec2(uTime, pindex) * 0.5) + 2.0.
+  // Die Partikel wandern also nach vorn und hinten und werden dabei groesser
+  // und kleiner. Eine 2D-Flaeche hat keine Tiefe; was davon uebrig bleibt und
+  // dasselbe erzeugt, ist ein Puls in Helligkeit und Groesse. Seitwaerts
+  // wandern lassen darf man sie hier ohnehin nicht: das zerfranst die Linien,
+  // und die Linien sind bei uns das Motiv.
+  // Wert = Tiefe des Pulses, 0.35 heisst plus/minus 35 % Helligkeit.
+  const ATEM     = zahl('atem', 0.35, 0, 1);
+  const TEMPO    = zahl('tempo', 1, 0, 4);
+  // Beruehrungsspur, das eigentliche Kennzeichen des Vorbilds. Drei Punkte,
+  // die dort wichtig sind und die ich zuerst alle drei anders hatte:
+  //  1. Die Richtung ist NICHT radial vom Finger weg. Im Shader steht
+  //     cos(angle)/sin(angle) mit einem Zufallswinkel JE PARTIKEL — sie stieben
+  //     jeder in seine eigene Richtung. Radial ergab eine saubere Furche, das
+  //     Vorbild fizzelt.
+  //  2. Die Staerke kommt aus der quadrierten Bewegungsstrecke zwischen zwei
+  //     Zeigerpositionen (`Math.min(dd * 10000, 1)`): ein schneller Wisch
+  //     drueckt voll, ein ruhender Finger fast gar nicht.
+  //  3. Jeder Spurpunkt lebt 120 Bilder mit einer Glockenkurve — 30 % der Zeit
+  //     blendet er auf, 70 % blendet er ab. Reines Abklingen sieht anders aus.
+  const SPUR     = zahl('spur', 30, 0, 90);
+  const SPUR_R   = Math.round(zahl('spurweite', 7, 2, 20));
+  const SPUR_ALT = Math.round(zahl('spurdauer', 120, 10, 400));
   const KONTRAST = q.get('kontrast') !== 'aus';   // Tonwertspreizung
   // Helligkeit umkehren. Der Effekt lenkt nach HELL aus, die Vorlage ist also
   // ein helles Motiv auf dunklem Grund. Rutgers Foto ist umgekehrt gebaut
@@ -178,10 +290,26 @@
   const RAND = zahl('rand', 0, 0, 0.3);
   // Feinjustierung der Groesse obendrauf, damit sich die Figur im Bild
   // einrichten laesst, ohne dass ich neu zuschneide.
-  const ZOOM = zahl('zoom', 1.25, 0.3, 3);
+  const ZOOM = zahl('zoom', 0.8, 0.3, 3);
   // Wie weit die Unterkante des Bildes ausklingt, als Anteil der Bildhoehe.
-  const SAUM = zahl('saum', 0.18, 0, 0.5);
-  const FREI = q.get('frei') !== 'aus';           // Hintergrund freistellen
+  // Im Raum wieder an, aber anders gebaut: kein Farbverlauf im Bild (der wuerde
+  // die Maske aufweichen), sondern es fallen zur Fotounterkante hin immer mehr
+  // Figurpunkte weg. Die Person geht dort in Staub ueber, statt abgeschnitten
+  // zu enden.
+  const SAUM = zahl('saum', 0.22, 0, 0.5);
+  // Hintergrund freistellen — seit dem 29.08.2026 AUS als Vorgabe, `?frei=an`
+  // schaltet es wieder ein.
+  //
+  // Die Freistellung war der Versuch, die Figur auf Schwarz zu stellen. Sie hat
+  // aber eine ganze Klasse von Fehlern erzeugt: sie schnitt die beschattete
+  // Unterseite des Unterarms weg (der Arm war innen hohl), sie musste den
+  // Schlagschatten hinter dem Kopf gesondert behandeln, und sie brauchte drei
+  // Regler (`toleranz`, `grau`, `hgmin`), die alle am selben Foto haengen.
+  // Mit der Wand im Bild gibt es nichts wegzuschneiden, also auch keine Loecher.
+  // Die Figur steht dann als Silhouette vor einer belichteten Wand, der
+  // Schlagschatten hinter dem Kopf traegt Tiefe, und das Linienmuster fuellt
+  // das ganze Bild statt in Schwarz auszulaufen.
+  const FREI = q.get('frei') === 'an';
   const TOL  = zahl('toleranz', 0.012, 0.005, 0.2); // wie weich der Verlauf sein darf
   // Schlagschatten mit entfernen. Sie sind dunkler als die Wand, das reine
   // Helligkeitswachstum bleibt an ihrer Kante stehen — der Schatten zaehlt dann
@@ -190,14 +318,217 @@
   // Schatten sind grau, Haut, Ringe und Kette sind es nicht.
   const SCHATTEN = q.get('schatten') !== 'behalten';
   const GRAU = zahl('grau', 0.085, 0, 0.4);   // ab wann etwas als grau gilt
-  const HGMIN = zahl('hgmin', 0.30, 0, 0.9);  // und wie hell es mindestens sein muss
+  // Wie hell etwas mindestens sein muss, um als Wand durchzugehen. Stand lange
+  // auf 0.30 — und riss damit ein Loch in den Unterarm: die beschattete
+  // Unterseite ist grau genug und heller als 0.30, galt also als Wand und
+  // wurde weggeschnitten. Gemessen: 38 918 helle Pixel gegen 50 162 bei 0.50.
+  // Die Wand selbst liegt bei ~0.81, der Abstand ist also reichlich.
+  //
+  //
+  // Bleibt bei 0.30. Der Schlagschatten links vom Kopf (lum 0.267) faellt
+  // NICHT ueber diese Schwelle, sondern ueber `istFern` weiter unten — er ist
+  // zu dunkel fuer "Wand", aber er liegt in Wandentfernung. `hgmin` zu senken
+  // war der erste Anlauf und hat das Shirt angefressen (-7 353 Pixel gegen
+  // -3 057 fuer den Schatten selbst); die Begruendung steht bei `istFern`.
+  const HGMIN = zahl('hgmin', 0.30, 0, 0.9);
   // Lokaler Kontrast. Kleine helle Details — Ringe, Halskette, Brillenrand —
   // gehen sonst im Umfeld unter: sie sind zwar heller als ihre Nachbarschaft,
   // aber absolut nicht hell genug, um aus der Kurve herauszustechen. Die
   // Gesamthelligkeit anzuheben hilft nicht, das hebt den Hintergrund mit.
   // Hier wird jedes Pixel gegen seine WEICHGEZEICHNETE Umgebung verstaerkt.
-  const SCHAERFE = zahl('schaerfe', 0.7, 0, 2.5);
-  const RADIUS = Math.round(zahl('radius', 4, 1, 12));
+  // 1.2 statt 0.7, Umfeld 3 statt 4: die Halskette ist im Foto ein duenner
+  // Silberstrang ueber schwarzem Shirt und im Handyformat ein bis zwei Pixel
+  // breit. Ueber die Helligkeit ist sie nicht zu holen, nur ueber den Abstand
+  // zur direkten Nachbarschaft — und die muss dafuer eng gefasst sein.
+  // Hoeher getestet (2.2 bei Umfeld 2): dann bekommt der Arm einen harten Rand
+  // und die Flaechen werden koernig.
+  const SCHAERFE = zahl('schaerfe', 1.2, 0, 2.5);
+  const RADIUS = Math.round(zahl('radius', 3, 1, 12));
+  // Ab welchem Ausschlag der lokale Kontrast ueberhaupt greift. Haelt die
+  // Wandstruktur draussen und laesst Kette, Ringe und Brillenrand durch.
+  const SCHWELLE = zahl('schwelle', 0.012, 0, 0.2);
+
+  // ---- Der Raum ---------------------------------------------------------
+  // Die Wand-Fassung liegt eingefroren in _face-wand.html. Hier steht die
+  // Figur freigestellt in einem gerechneten Raum: Boden aus Ringen in
+  // Perspektive, Figur davor, Staub dazwischen.
+  const FARBE = q.get('farbe') === 'blau' ? 'blau' : 'rot';
+  // Waagerechte des Horizonts, als Anteil der Buehnenhoehe. Darunter Boden,
+  // darueber leerer Raum.
+  // Brennweite in Pixeln und Kamerahoehe. Nur ihr Verhaeltnis bestimmt, wie
+  // schnell die Ringe zum Horizont zusammenruecken; getrennt, weil f allein
+  // die Breite steuert.
+  const BRENN = zahl('brenn', 560, 100, 3000);
+  // Abstand der Kamera zum Mittelpunkt der Ringe und Weltabstand der Ringe.
+  // Staerke des Aufblasens: bis zu welchem Abstand vom Silhouettenrand (in px)
+  // die Tiefe auf 1 steigt. Grob die halbe Breite eines Unterarms.
+  // 0 = selbst eichen: die halbe Breite der Figur, gemessen als groesster
+  // Abstand zum Silhouettenrand. Fest 42 px liess den Oberkoerper voll
+  // saettigen (gemessen: Brust 1,000 ueber die ganze Flaeche).
+  const AUFBLAS = zahl('aufblas', 0, 0, 200);
+  const TIEFE = zahl('tiefe', 1, 0, 3);        // Gesamtstaerke der Tiefe
+  // Seitliche Verschiebung der Figur gegen den Boden, in Pixeln bei voller
+  // Tiefe. Noch nicht an den Scrollweg gehaengt — erst von Hand ansehen.
+  // Tiefenkarte statt Aufblasen. `?tiefenkarte=aus` erzwingt den Rueckfall.
+  const KARTE = q.get('tiefenkarte') !== 'aus';
+  const ZFIG = zahl('zfig', 0, 0, 40);        // 0 = Vorgabe 8
+  const STAUBHELL = zahl('staubhell', 0.85, 0, 1);
+  // Woraus die Helligkeit eines Figurpunktes kommt. Zusammen sollten die drei
+  // ungefaehr 1 ergeben. Die Belichtung des Fotos traegt nur noch wenig bei —
+  // sie sagt nichts ueber die Form: der Unterarm ist weiss, weil der Blitz ihn
+  // ausgefressen hat, nicht weil er vorn ist.
+  // Gesamthelligkeit. Beim Addieren zaehlt sie doppelt: dichte Stellen
+  // summieren sich, und ohne Deckel brennt die Figur zu einer Flaeche aus.
+  const HELL   = zahl('hell', 0.45, 0.05, 3);
+  // ALBEDO mal BELEUCHTUNG, wie jeder 3D-Renderer. Davor waren es vier
+  // zusammengewuerfelte Helligkeitsterme, die sich gegenseitig aufgehoben
+  // haben — 76 Regler, und keiner davon hat die Form beschrieben.
+  //
+  // ALBEDO = was das Material ist. Kommt aus dem FOTO, denn nur dort steht
+  // das Gesicht: gemessen traegt das Foto an Auge und Brille die 40-fache
+  // Feinstruktur der Tiefenkarte (0.050 gegen 0.0013, Rauschboden der leeren
+  // Wand 0.0006), an der Stirn die 30-fache. Die Tiefenkarte ist an dieser
+  // Stelle ein glattes Ei — Augen, Nase und Mund sind schlicht nicht drin.
+  // Beides sind Hochpaesse, die Belichtung der Kamera faellt also heraus:
+  // der Unterarm ist im Foto weiss vom Blitz, gegen seine Umgebung aber flach.
+  const HMATERIAL = zahl('hmaterial', 0.25, 0, 1);   // Sockel: "hier ist Material"
+  const HFOTO  = zahl('hfoto',  1.2, 0, 3);
+  // 1.2/16 statt 0.3/8. Nach der Recherche-Runde stand hier 0.3, weil 1.4/16
+  // damals ZUSAMMEN MIT `hton=0.4` alles uebertoente — der Term, der die
+  // Flaeche fuellt, war ausgeschaltet, und dann ist jeder Hochpass ein
+  // Kantendetektor. Mit `hton=1.4` traegt die Flaeche, und das Foto darf
+  // wieder Struktur liefern. Gemessen (4x4 gemittelt, dann Nachbardifferenz):
+  // Brille 25.5 -> 39.4, Haare 19.7 -> 24.4. Bei 1.7/20 wird das Shirt koernig.
+  //
+  // Die FINGER haengen NICHT hieran — sie kommen aus echter Geometrie in der
+  // Tiefenkarte. `nskala`, `nradius` und `hrand` durchprobiert (250/12, 450/8,
+  // 700/6, dazu hrand 0.3): im Bild nicht zu unterscheiden. Wer dort mehr
+  // will, braucht eine bessere Tiefenkarte, und die ist lizenzgesperrt.    // feine Struktur (Brille, Kette)
+  const HTON   = zahl('hton',   1.4, 0, 3);    // Tonwerte: das FUELLT die Figur
+  const TONRADIUS = Math.round(zahl('tonradius', 40, 4, 200));
+  const TONSKALA  = zahl('tonskala', 2.2, 0.2, 12);
+  // 1 = symmetrisch. Die Asymmetrie war gegen einen Halo gebaut, den es nicht
+  // gab (nachgemessen unter 1 % Unterschied), und ein Albedo hat keinen Grund,
+  // Dunkles anders zu behandeln als Helles.
+  const TONDUNKEL = zahl('tondunkel', 1, 0, 1);
+  const HDETAIL = zahl('hdetail', 16, 0, 60);  // Verstaerkung dieser Struktur
+  const HDUNKEL = zahl('hdunkel', 1.5, 0, 3);  // Gewicht dunkler Kanten
+  const HHELL   = zahl('hhell', 0.3, 0, 3);    // Gewicht heller Kanten
+  //
+  // BELEUCHTUNG = wie die Flaeche im Raum steht. Kommt aus der TIEFENKARTE,
+  // ueber die NORMALE — nicht mehr ueber den Betrag des Gefaelles. Das war
+  // der eigentliche Fehler: |grad z| ist ein Kantendetektor (auf der Wange
+  // gemessen 0.0004, an der Silhouette 0.076, Faktor 190) und kann deshalb
+  // gar nichts anderes als Umrisse zeichnen. Genau das war die
+  // "Strichzeichnung um jeden Finger". Die Normale aus denselben zwei
+  // Ableitungen modelliert dagegen: eine wegdrehende Wange wird dunkel,
+  // weil sie wegdreht.
+  const LICHT   = zahl('licht', 135, 0, 360);  // Richtung in Grad, 135 = links oben
+  const HAMBIENT = zahl('ambient', 0.2, 0, 1); // Grundlicht, damit nichts absaeuft
+  // BASISWEITE der Ableitung — der Regler, an dem alles haengt. Eine Normale
+  // aus dem Unterschied zweier NACHBARpixel misst die Form auf einem Pixel,
+  // und auf einem Pixel ist ein Gesicht flach: gemessen liegt die Streuung
+  // von N mal L auf dem Kopf dann bei 0.08, also praktisch nichts, waehrend
+  // die Silhouette voll ausschlaegt. Genau das ist wieder eine
+  // Strichzeichnung, nur mit mehr Rechnerei.
+  // Ueber 12 Pixel gemessen steigt dieselbe Streuung auf 0.23, ueber 24 auf
+  // 0.32 — und die leere Wand bleibt dabei bei 0.009 flach. Die Wange
+  // kruemmt sich eben ueber Zentimeter, nicht ueber Pixel.
+  // (Gegenprobe: dieselbe Staerke ueber 1 Pixel erzwungen — Gesicht 0.23,
+  // aber Wand 0.065, also achtmal mehr Rauschen. Die breite Basis ist nicht
+  // nur staerker, sie ist sauberer.)
+  const NRADIUS = Math.round(zahl('nradius', 12, 1, 60));
+  const NSKALA  = zahl('nskala', 250, 5, 1500); // Tiefe je Pixel -> Steigung
+  // Streiflicht: wie weit die Normale von der Kamera wegzeigt (1 - nz). Das
+  // ist die richtige Fassung dessen, was `hkante` genaehert hat, nur auf
+  // 0..1 normiert — und der Term, der ein Hologramm zum Leuchten bringt.
+  const HRAND  = zahl('hrand', 0.1, 0, 2);
+  const HTIEFE = zahl('htiefe', 0.15, 0, 2);   // je naeher, desto heller
+  // Hoehenlinien: Baender gleicher Tiefe, wie auf einer Landkarte. VORGABE 0 —
+  // ueber einer richtig beleuchteten Flaeche lesen sie sich als Streifen und
+  // arbeiten gegen die Modellierung. Der Regler bleibt fuer den Look.
+  const HLINIEN   = zahl('hoehenlinien', 0, 0, 80);
+  const HLSTAERKE = zahl('hlstaerke', 0.35, 0, 2);
+  // Zufallsversatz in der Tiefe. VORGABE 0, und das ist ein Ergebnis, kein
+  // Versaeumnis: die Idee war, der Figur damit Volumen statt einer Haut zu
+  // geben. Bei Winkel 0 tut sie nichts — die Tiefe geht dort gar nicht in die
+  // Projektion ein. Beim Drehen wird aus dem Zufall in z ein Zufall zur Seite,
+  // also Unschaerfe: bei 14 Grad und 0.35 war das Gesicht nicht mehr lesbar,
+  // bei 0.12 noch sichtbar weicher. Der Regler bleibt, die Vorgabe ist aus.
+  const WOLKE = zahl('wolke', 0, 0, 2);
+  // Feinabtastung: wo STRUKTUR ist, wird jedes Pixel zu einem Punkt, sonst
+  // bleibt es beim groben Raster. Brille, Augen, Kette und Finger bekommen
+  // damit volle Aufloesung, Shirt und Arm nicht — und die Person ist zu
+  // erkennen, ohne dass die Wolke zu einer geschlossenen Flaeche wird.
+  // Schwelle auf demselben Mass, das auch die Helligkeit traegt.
+  const FEIN = zahl('fein', 0.28, 0, 3);
+  // Maske aus der Tiefenkarte statt aus Helligkeit und Buntheit.
+  // `?maske=bunt` holt das alte Bereichswachstum zurueck (noetig, wenn ein
+  // Foto ohne Tiefenkarte verwendet wird — dann greift es ohnehin von selbst).
+  // 'beides' = Tiefe UND Buntheit muessen zustimmen (Vorgabe),
+  // 'tiefe' = nur die Tiefenkarte, 'bunt' = nur das alte Bereichswachstum.
+  const MASKE = q.get('maske') || 'beides';
+  // ?zeige=maske malt die Maske selbst: weiss = Person, schwarz =
+  // Hintergrund. Ohne diese Ansicht raet man, wo ein Loch sitzt — ich habe
+  // es dreimal an der falschen Stelle gesucht.
+  const ZEIGE = q.get('zeige') || '';
+  // Wie weit weg etwas laut Tiefenkarte sein muss, damit es als Wand zaehlt.
+  // ENG gefasst: an dieser Vorlage liegt die Wand bei 41..56 von 255, die
+  // Person ab etwa 112. Mit 0.32 (=82) hat das Bereichswachstum sich in die
+  // Person gefressen — freigestellt 82 % statt der erwarteten 70.
+  // Ab welcher Tiefe etwas als NAH gilt und damit nie Hintergrund sein kann.
+  // Gemessen an dieser Vorlage: Wand 41..56, linke Halsseite 47, Shirt 135,
+  // Kinn 134, Unterarm ueber 200 — alles von 255.
+  const NAHTIEFE = zahl('nahtiefe', 0.42, 0.05, 0.95);
+  // Ab welcher Tiefe etwas so weit weg ist, dass es auch dunkel noch Wand sein
+  // darf. Gemessen an dieser Vorlage: Schlagschatten 13..22 von 255, Wand
+  // 0..63, Hals 55..64, Shirt 137, Unterarm ueber 200. 0.12 (=31) liegt mit
+  // Abstand unter dem Hals und ueber dem Schatten.
+  const FERNTIEFE = zahl('ferntiefe', 0.12, 0, 0.6);
+  const RAUM = zahl('raum', 1, 0, 4);         // Streckung der Figurtiefe
+  // Amplitude in Grad. Beschlossen waren ±20; gebaut wurde erst 7, dann 10,
+  // weil die Figur bei 20 "heftig ausschwang statt zu schwenken". Ursache war
+  // aber nicht der Winkel, sondern die damals falsch geeichte Figurtiefe (40 %
+  // der Entfernung statt einem Fuenftel). Seit `reliefTiefe = RAUM*0.2*zfig`
+  // ist das behoben, und bei ±20 gemessen: Schwerpunkt wandert 20,7 px, die
+  // Figur wird perspektivisch schmaler (bis x=373 statt bis zum Rand), keine
+  // Loecher, keine sichtbare Rueckseite. Die Amplitude war nur nie
+  // nachgezogen worden.
+  const SCHWENK = zahl('schwenk', 20, 0, 60);
+  const SCHWENKTEMPO = zahl('schwenktempo', 1, 0, 8);
+  // Fester Winkel fuer Standbilder und Messungen; sonst schwenkt es selbst.
+  const WINKEL = q.has('winkel') ? zahl('winkel', 0, -60, 60) : null;
+  const RAD = Math.PI / 180;
+  // Untergrenze der Helligkeit auf der Silhouette. Stand auf 1, also dem
+  // Maximum der Rampe — damit war jedes Randpixel WEISS, waehrend die Figur
+  // bei `hell=0.45` irgendwo um 0.1..0.5 liegt. Das war die weisse Outline um
+  // Kopf und Finger: keine Beleuchtung, sondern eine Klemme.
+  //
+  // Sie stammt aus der Zeit der Strichzeichnung, als die Kontur der Look war.
+  // Seit Albedo mal Beleuchtung macht das Streiflicht `HRAND * rand[p]` die
+  // Kante aus der Normalen — physikalisch statt geklemmt. Was hier bleibt, ist
+  // ein leiser Sockel, damit die Silhouette nicht zur Punktreihe zerfaellt.
+  const RANDLICHT = zahl('randlicht', 0.35, 0, 1);
+  // Aufteilung des Punktbudgets: Anteil fuer die Figur, Anteil fuer den Staub,
+  // der Rest geht an den Boden.
+  const ANTEIL = zahl('anteil', 0.6, 0, 1);
+  const STAUB = zahl('staub', 0.03, 0, 0.5);
+  // Senkrechte Lage der Figur in der Buehne (Mitte des Motivkastens).
+  const FIGY = zahl('figury', 0.46, 0, 1);
+  // Raster der Figur. Enger als das alte Ringraster (3/1), weil sie jetzt eine
+  // MASSE sein soll und nicht mehr eine Folge von Linien.
+  // Zeilenabstand 1, Spaltenabstand 2. Das ist der Punkt, an dem die Person
+  // wirklich zu erkennen ist — gemessen und nebeneinander verglichen:
+  // bei 3/2 (19 800 Punkte) war das Gesicht eine Masse, bei 1/2 (47 000)
+  // sind Brille, Augen, Nase und Finger da. Kosten dafuer 2,5 -> 4,0 ms.
+  // Dichte war also nie das Budget-Problem, fuer das ich sie gehalten habe.
+  const FIGLINIEN = Math.round(zahl('figlinien', 1, 1, 8));
+  const FIGPUNKTE = Math.round(zahl('figpunkte', 1, 1, 5));
+  // Punktabstand auf den Bodenringen, in Bildschirmpixeln.
+  // Waagerechte Lage des Fusspunkts der Ringe.
+  // Der Zerfall bleibt gebaut, ist aber aus: erst steht der Raum, dann wird
+  // entschieden, was das Scrollen tun soll.
+  const ZERFALL = q.get('zerfall') === 'an';
 
   // Umschaltbar ueber ?bild=, damit sich Vorlagen direkt vergleichen lassen.
   // Feste Liste statt freiem Pfad: der Wert kaeme sonst ungeprueft aus der
@@ -211,8 +542,6 @@
   // eigenes Bedienfeld hat ihn als 'Linethickness'. Ein-Pixel-Punkte decken
   // bei Linienabstand 4 nur rund ein Achtel der Flaeche ab; gemessen waren
   // nur 11 % der Buehne hell, obwohl die Spitzen schon 255 erreichten. Erst
-  // dickere Punkte in den Lichtern schliessen die Grate.
-  const DICKE    = Math.round(zahl('dicke', 2, 1, 3));
   // Obergrenze fuer die Punktzahl. Daraus wird der Rasterabstand gerechnet,
   // damit grosse Schirme nicht in die Knie gehen (siehe aufbauen()).
   const ZIEL     = zahl('ziel', 170000, 10000, 400000);
@@ -253,30 +582,193 @@
   // Gewinn — und das Raster soll in der Einheit sitzen, in der es gesehen wird.
   const pcv  = document.createElement('canvas');
   const pctx = pcv.getContext('2d');
-  let pimg = null, buf32 = null;
+  let pimg = null, buf32 = null, acc = null;
+  // Farbrampe: 256 Stufen von dunkel nach weissgluehend. Einmal gebaut, dann
+  // ist die Umrechnung von Helligkeit nach Farbe ein Feldzugriff.
+  const rampe = new Uint32Array(256);
 
   // Punkte als getrennte typisierte Felder statt Objekte: ein Feld von
   // zehntausenden Objekten wuerde den Speicherbereiniger bei jedem Bild
   // beschaeftigen.
-  let n = 0, Dx, Dy, Dr1, Dr2, Dd, Drgb, Ds;
+  let glBereit = false, glAus = null;
+  let n = 0, Dx, Dy, Dr1, Dr2, Dd, Dh, Ep, Ee, Dz, Dart, Dzc, DzcB;
+  // Kameraparameter, die punkte() zum Schwenken braucht. Sie entstehen beim
+  // Aufbau und aendern sich danach nicht.
+  let pBx = 0, pYh = 0, pZax = 1, pXax = 0;
+  let raumWerte = null;   // zur Kontrolle in zahlen()
+  let schwenkTick = 0, winkelJetzt = 0;
   let skala = 1;   // Rasterfaktor gegenueber der Bezugshoehe 844
   let freiAnteil = 0;   // Anteil freigestellter Flaeche, zur Kontrolle
   let letzterKasten = null;   // zuletzt ermittelter Motivkasten, zur Kontrolle
   let panVon = 0, panBis = 0; // Strecke der Querfahrt, in Pufferpixeln
-  let bauZeit = 0;
+  let panX = 0;               // aktuelle Verschiebung, fuer die Zeigerumrechnung
+  let bauZeit = 0, bauPhasen = null;
+  // Zaehlung je Punktsorte, damit sich die Aufteilung des Budgets pruefen
+  // laesst, statt sie zu schaetzen.
+  let sorten = null;
+  let einStart = 0, ein = 1;  // Fortschritt des Einflugs, 1 = fertig
 
+  // Sinustabelle. Der Einflug braucht je Punkt eine Richtung, die Eigenbewegung
+  // je Punkt und Bild zwei Werte — bei 106 000 Punkten waeren das 200 000
+  // Math.sin je Bild. Aus der Tabelle kostet dasselbe zwei Feldzugriffe.
+  // 1024 Eintraege, damit der Index mit & 1023 umlaeuft; ein Viertel davon
+  // (256) ist die Phasenverschiebung fuer den Kosinus.
+  const SIN = new Float32Array(1024);
+  for (let i = 0; i < 1024; i++) SIN[i] = Math.sin(i * Math.PI / 512);
+  // Die Rampe. Ein Kanal zieht frueh auf voll, die anderen erst in den
+  // Lichtern — dort kippt es ins Weissgluehende, ohne dass die Mitteltoene
+  // ins Rosa oder Violette gehen.
+  for (let i = 0; i < 256; i++) {
+    const b = i / 255;
+    let r, g, bl;
+    if (FARBE === 'blau') {
+      bl = 255 * Math.min(1, b * 1.3);
+      g  = 255 * Math.pow(b, 1.5) * 0.95;
+      r  = 255 * Math.pow(b, 3.2) * 0.75;
+    } else {
+      r  = 255 * Math.min(1, b * 1.25);
+      g  = 255 * Math.pow(b, 2.2) * 0.85;
+      bl = 255 * Math.pow(b, 3.4) * 0.75;
+    }
+    // Deckend: das Leuchten steckt in der Farbe selbst, nicht in der Deckung.
+    // Der Grund ist schwarz, dunkle Punkte fallen also von selbst weg.
+    rampe[i] = 0xFF000000 | (Math.round(bl) << 16) | (Math.round(g) << 8) | Math.round(r);
+  }
+  let atemTick = 0;
+
+  // Beruehrungsspur. Grobes Feld statt einer Textur — im Vorbild ist es eine
+  // 64x64-Leinwand, hier ein Zahlenfeld mit 8 px Kantenlaenge, also rund 5 000
+  // Zellen fuer ein Handybild. Gespeichert wird nur die STAERKE; die Richtung
+  // bringt jeder Punkt selbst mit (siehe SPUR oben).
+  // ponytail: Zellgroesse ist fest 8, weil im Bildlauf mit >> 3 indiziert wird.
+  // Anpassbar machen hiesse dort eine Division; erst noetig, wenn die Spur zu
+  // grob aussieht.
+  let gw = 0, gh = 0, F = null, spurAktiv = false;
+  // Die Spur ist eine Liste alternder Punkte, kein abklingendes Feld: nur so
+  // bekommt jeder Punkt seine eigene Glockenkurve. Das Feld wird daraus in
+  // jedem Bild neu gezeichnet.
+  const spurPunkte = [];
+  let letzterZeiger = null;
+
+  // Kein Aufwaermlauf. Der erste je gemessene Aufbau kostete 1131 ms, jeder
+  // weitere 187 ms, und die naheliegende Erklaerung war V8: beim ersten
+  // Durchgang laufen die Schleifen noch interpretiert. Ein voller Aufbau auf
+  // winziger Flaeche vorweg sollte sie uebersetzen. Gemessen, 5 Laeufe je Seite:
+  // ohne Vorlauf 201 ms bis zum ersten Bild, mit Vorlauf 313 ms — der Vorlauf
+  // kostet mehr, als er spart, und der eigentliche Aufbau wurde davon auch
+  // nicht schneller (151 vs. 174 ms). Verworfen.
   const img = new Image();
   img.decoding = 'async';
-  img.onload = () => { geladen = true; resize(); requestAnimationFrame(tick); };
+  // Tiefenkarte: dieselbe Aufnahme, einmal offline durch Depth Anything V2
+  // gerechnet (hell = nah), Dateiname aus dem Foto abgeleitet. Sie ersetzt das
+  // Aufblasen der Silhouette, das an der interessantesten Stelle des Fotos
+  // falsch herum lag — gemessen am 29.08.2026 mit __face.tiefe():
+  //   Brust 1,000 (gesaettigt) · Hand 0,938 · Kopf 0,811.
+  // Tatsaechlich ist die vorgestreckte Hand das Naechste im ganzen Bild.
+  // Die Karte dreht das um: Hand 172 · Brust 143 · Kopf 112 · Wand 49.
+  // Fehlt die Datei, baut der Effekt unveraendert mit dem Aufblasen weiter.
+  const tImg = new Image();
+  let tiefeDa = false;
+  let offen = KARTE ? 2 : 1;
+  const startenWennFertig = () => {
+    if (--offen > 0) return;
+    geladen = true; resize(); requestAnimationFrame(tick);
+  };
+  img.onload = startenWennFertig;
   img.onerror = () => { hud.textContent = 'Bild nicht ladbar: ' + SRC; };
   img.src = SRC;
+  if (KARTE) {
+    tImg.decoding = 'async';
+    tImg.onload = () => { tiefeDa = true; startenWennFertig(); };
+    tImg.onerror = startenWennFertig;   // kein Abbruch, nur flacher
+    tImg.src = SRC.replace(/\.[^.]+$/, '-tiefe.png');
+  }
 
   // Trennbarer Kastenweichzeichner. Zwei eindimensionale Durchgaenge mit
   // laufender Summe statt eines echten Kerns: die Kosten haengen nicht am
   // Radius, und genauer muss es fuer eine Kontrastverstaerkung nicht sein.
-  function weichzeichnen(quelle, w, h, r) {
+  // Weichzeichnen, das an der Silhouette AUFHOERT — normalisierte Faltung.
+  //
+  // Das war der eigentliche Halo, und ich habe ihn dreimal an der falschen
+  // Stelle gesucht. Ein normaler Weichzeichner mittelt ueber alles im Radius,
+  // also am Kopfrand auch ueber die HELLE WAND. Der oertliche Mittelwert
+  // schiesst dort hoch, und `lum - mittelwert` wird fuer den ganzen Kopf
+  // stark negativ: der Kopf faellt auf null. Genau so sah es aus — Schultern
+  // und Unterarm hell, das Gesicht schwarz. Beim Radius 40 des Tonwerts
+  // reicht dieser Schatten 40 Pixel weit ins Gesicht hinein.
+  //
+  // (Letzte Runde habe ich dazu `?tondunkel=` gemessen und "unter 1 %
+  // Unterschied, nicht die Ursache" notiert. Das stimmte auch — der Regler
+  // wirkt nur auf die dunkle Haelfte der Kurve, nicht auf den Mittelwert,
+  // aus dem die Kurve gebildet wird. Ich hatte die falsche Haelfte geprueft.)
+  //
+  // Fix: Bild und Maske getrennt weichzeichnen und teilen. Dann laeuft der
+  // Mittelwert am Rand nur noch ueber Pixel, die zur Person gehoeren.
+  // Der weichgezeichnete Nenner haengt nur am Radius, nicht an der Quelle —
+  // also einmal je Radius rechnen. Ohne den Zwischenspeicher lief er fuer
+  // Tiefe, Tonwert und Detail dreimal, und ein Durchgang ueber 330 000 Pixel
+  // ist nicht der teure Teil: teuer sind die drei Float32Array, die er dabei
+  // jedesmal neu anlegt.
+  const nennerCache = new Map();
+  function weichzeichnenMaskiert(quelle, mask, w, h, r) {
+    const n = w * h;
+    const schl = w + 'x' + h + 'r' + r;
+    let mb = nennerCache.get(schl);
+    if (!mb) { mb = weichzeichnen(mask, w, h, r); nennerCache.set(schl, mb); }
+    const q = new Float32Array(n);
+    for (let p = 0; p < n; p++) q[p] = quelle[p] * mask[p];
+    weichzeichnen(q, w, h, r, q);        // an Ort und Stelle, siehe unten
+    for (let p = 0; p < n; p++) q[p] = mb[p] > 0.002 ? q[p] / mb[p] : quelle[p];
+    return q;
+  }
+
+  // Der Zwischenpuffer der Zeilenrichtung wird wiederverwendet. Er ist rein
+  // intern, kann also nicht mit einem Ergebnis kollidieren — und er war der
+  // Grund fuer die Streuung der Aufbauzeit: sechs Weichzeichner-Durchgaenge
+  // legten je zwei Float32Array ueber 330 000 Pixel an, zusammen rund 16 MB
+  // Muell je Aufbau. Gemessen schwankte der Aufbau dadurch zwischen 246 und
+  // 896 ms, obwohl die reine Rechenzeit gleich blieb.
+  //
+  // `ziel` darf dieselbe Reihe wie `quelle` sein: der Zeilendurchgang hat die
+  // Quelle vollstaendig in `tmp` gelesen, bevor der Spaltendurchgang schreibt.
+  // Glatte Felder brauchen keine Pixelaufloesung. Ein Weichzeichner mit
+  // Radius 40 loescht per Definition alles, was feiner ist als 40 Pixel — ihn
+  // trotzdem auf jedem Pixel zu rechnen ist verschenkte Arbeit. In halber
+  // Aufloesung kostet er ein Viertel und legt ein Viertel Speicher an.
+  // Zurueck geht es bilinear, weil das Feld ohnehin glatt ist.
+  function halbieren(a, w, h) {
+    const w2 = w >> 1, h2 = h >> 1, aus = new Float32Array(w2 * h2);
+    for (let y = 0; y < h2; y++) {
+      const z = 2 * y * w, z2 = y * w2;
+      for (let x = 0; x < w2; x++) {
+        const i = z + 2 * x;
+        aus[z2 + x] = (a[i] + a[i + 1] + a[i + w] + a[i + w + 1]) * 0.25;
+      }
+    }
+    return { a: aus, w: w2, h: h2 };
+  }
+  function verdoppeln(a2, w2, h2, w, h, ziel) {
+    const aus = ziel || new Float32Array(w * h);
+    for (let y = 0; y < h; y++) {
+      const fy = Math.min(h2 - 1.001, y * 0.5);
+      const y0 = fy | 0, wy = fy - y0, z0 = y0 * w2, z1 = Math.min(h2 - 1, y0 + 1) * w2;
+      const z = y * w;
+      for (let x = 0; x < w; x++) {
+        const fx = Math.min(w2 - 1.001, x * 0.5);
+        const x0 = fx | 0, wx = fx - x0, x1 = Math.min(w2 - 1, x0 + 1);
+        const o = a2[z0 + x0] * (1 - wx) + a2[z0 + x1] * wx;
+        const u = a2[z1 + x0] * (1 - wx) + a2[z1 + x1] * wx;
+        aus[z + x] = o * (1 - wy) + u * wy;
+      }
+    }
+    return aus;
+  }
+
+  let wzTmp = null;
+  function weichzeichnen(quelle, w, h, r, ziel) {
     const d = 2 * r + 1;
-    const tmp = new Float32Array(w * h), aus = new Float32Array(w * h);
+    if (!wzTmp || wzTmp.length < w * h) wzTmp = new Float32Array(w * h);
+    const tmp = wzTmp, aus = ziel || new Float32Array(w * h);
     const kx = x => Math.min(w - 1, Math.max(0, x));
     const ky = y => Math.min(h - 1, Math.max(0, y));
     for (let y = 0; y < h; y++) {
@@ -391,7 +883,6 @@
     const linien = Math.max(2, Math.round(LINIEN * k));
     const punkt  = Math.max(1, Math.round(PUNKTE * k));
     const relief = RELIEF * k;
-    const dicke  = Math.max(1, Math.round(DICKE * k));
     skala = k;
 
     // Vorlage formatfuellend in die Buehnengroesse legen, dann daraus die
@@ -440,7 +931,38 @@
       iw = img.naturalWidth * s; ih = img.naturalHeight * s;
       ix = (W - iw) / 2; iy = (H - ih) / 2;
     }
+    // Senkrechte Lage der Figur frei waehlbar. Die Wand wird ohnehin
+    // weggeschnitten, also muss das Foto die Buehne nicht mehr fuellen — im
+    // Gegenteil: unter der Figur soll Boden sichtbar bleiben. Deshalb kein
+    // Einrasten nach unten mehr (das war noetig, solange die Wand im Bild war)
+    // und keine fortgesetzte Randzeile.
+    if (!FAHRT) {
+      iy = FIGY * H - (kasten ? (kasten.y + kasten.h / 2) * ih : ih / 2);
+      ix = Math.max(W - iw, Math.min(0, ix));
+    }
+
     tctx.drawImage(img, ix, iy, iw, ih);
+
+    // Die Tiefenkarte mit DEMSELBEN drawImage in ein zweites Canvas legen.
+    // Dann passt sie per Konstruktion pixelgenau zum Foto — kein eigener
+    // Umrechnungsschritt, der auseinanderlaufen koennte. Der Grund ist
+    // Schwarz (= ganz hinten), damit ausserhalb des Fotos nichts nach vorn
+    // springt.
+    let tief = null;
+    if (tiefeDa) {
+      const tk = document.createElement('canvas');
+      tk.width = W; tk.height = H;
+      const kctx = tk.getContext('2d', { willReadFrequently: true });
+      kctx.fillStyle = '#000';
+      kctx.fillRect(0, 0, W, H);
+      kctx.drawImage(tImg, ix, iy, iw, ih);
+      tief = kctx.getImageData(0, 0, W, H).data;
+    }
+    // Fotounterkante in Buehnenpixeln — dort hoert die Person auf, weil das
+    // Foto ein Brustbild ist. Der Uebergang in Staub passiert beim Erzeugen
+    // der Figurpunkte, nicht hier als Farbverlauf: ein Verlauf im Bild wuerde
+    // die Maske mit aufweichen.
+    const fotoUnten = iy + ih;
 
     // Strecke der Querfahrt: ueber das MOTIV, nicht ueber das Bildrechteck.
     // Ueber das Rechteck stand die Ansicht am Anfang auf der leeren Wand links —
@@ -455,24 +977,30 @@
       panVon = panBis = 0;
     }
 
-    // Unterkante ausklingen lassen. Das Foto ist ein Hueftbild — ohne das endet
-    // die Figur an einer schnurgeraden waagerechten Linie, dem Rand der
-    // Fotografie. Mit dem Verlauf geht sie in den Grundton ueber und loest sich
-    // ins Linienmuster auf, statt abgeschnitten zu wirken.
-    if (SAUM > 0) {
-      const yb = Math.min(H, iy + ih);
-      const band = Math.max(1, ih * SAUM);
-      const g = tctx.createLinearGradient(0, yb - band, 0, yb);
-      g.addColorStop(0, 'rgba(' + e[0] + ',' + e[1] + ',' + e[2] + ',0)');
-      g.addColorStop(1, 'rgba(' + e[0] + ',' + e[1] + ',' + e[2] + ',1)');
-      tctx.fillStyle = g;
-      tctx.fillRect(0, yb - band, W, band);
-    }
     const px = tctx.getImageData(0, 0, W, H).data;
+    const tVorlage = performance.now();
 
     pcv.width = W; pcv.height = H;
+    // Faellt der GL-Pfad aus IRGENDEINEM Grund aus — kein WebGL2, kein
+    // Float-Zielpuffer, ein Treiber, der die Shader nicht uebersetzt —, dann
+    // laeuft der CPU-Pfad unveraendert weiter. Ein geworfener Shader-Fehler
+    // duerfte den Aufbau nicht mitreissen.
+    if (GL && !gl && !glAus) {
+      try { if (!glStart()) glAus = 'kein WebGL2 mit Float-Zielpuffer'; }
+      catch (e) { glAus = String(e.message || e); }
+    }
     pimg = pctx.createImageData(W, H);
     buf32 = new Uint32Array(pimg.data.buffer);
+    // Tiefenpuffer. Ohne ihn malen die spaeter erzeugten Bodenringe ueber die
+    // Schulter, sobald die Figur beim Schwenken zur Seite geht.
+    // Helligkeitsspeicher zum Addieren. Ein Feld statt dreier Farbkanaele —
+    // moeglich, weil das Bild einfarbig ist.
+    acc = new Float32Array(W * H);
+
+    // Feld fuer die Beruehrungsspur, in Pufferpixeln wie alles andere.
+    gw = Math.ceil(W / 8); gh = Math.ceil(H / 8);
+    F = new Float32Array(gw * gh);
+    spurPunkte.length = 0; letzterZeiger = null; spurAktiv = false;
 
     const anz = W * H;
     const lum = new Float32Array(anz);
@@ -482,19 +1010,69 @@
       lum[p] = (r * 0.299 + g * 0.587 + b * 0.114) / 255;
       bunt[p] = (Math.max(r, g, b) - Math.min(r, g, b)) / 255;
     }
-    const wandArtig = p => SCHATTEN && bunt[p] < GRAU && lum[p] > HGMIN;
-
-
-    // ---- Hintergrund freistellen ----------------------------------------
-    // Der eigentliche Grund, warum dieses Foto vorher nicht trug: die WAND ist
-    // heller als die Person (gemessen: Median 206). Bei einer Auslenkung nach
-    // Helligkeit bildet also der Hintergrund die Grate. Die Umkehr drehte das
-    // um, liess dann aber die SCHATTEN modellieren — Jackenfalten gluehten, das
-    // Gesicht blieb flach. Symptom behandelt, nicht Ursache.
+    // Wandartig heisst: grau — UND entweder hell genug ODER laut Tiefenkarte
+    // weit weg.
     //
-    // Ist die Wand weg, ist die Person das Hellste im Bild, es modellieren
-    // wieder die Lichter, und die Umkehr wird ueberfluessig. Das ist genau die
-    // Anordnung der Vorlage: helles Motiv auf Schwarz.
+    // Das Bereichswachstum bleibt das Verfahren, denn es folgt weichen
+    // Verlaeufen und haelt an Kanten; eine Schwelle auf der Tiefenkarte kann
+    // das nicht. Zweimal probiert und beide Male am Hals gescheitert: dort
+    // liest das Modell den tiefen Schatten unter dem Kiefer als weit weg, und
+    // es riss ein Keil aus dem Hals (gemessen 20 statt 830 Punkte). Auch ein
+    // UND aus Tiefe und Buntheit half nicht (48) — der Halsschatten ist grau
+    // UND weit weg, beide Stimmen liegen dort gleich falsch.
+    //
+    // Die Tiefe hilft aber genau da, wo die Helligkeitsgrenze zu grob war:
+    // der Schlagschatten an der Wand ist grau und DUNKEL, also brauchte es
+    // frueher `hgmin`, um ihn zu treffen — und dieselbe Grenze frass dann den
+    // beschatteten Unterarm. Der Unterarm ist nah, der Schatten weit weg.
+    // Wandartig heisst: grau, hell genug — und laut Tiefenkarte NICHT nah.
+    //
+    // Die Tiefe taugt hier fuer genau eine Sache: `hgmin` musste einmal von
+    // 0.30 auf 0.50 steigen, weil das Wachstum sonst die beschattete
+    // Unterseite des Unterarms auffrass (grau und dunkel, wie ein
+    // Schlagschatten). Damit blieb aber der Schatten neben dem Kopf stehen.
+    // Der Unterarm ist eindeutig NAH (ueber 200 von 255), der Schatten liegt
+    // auf der Wand. Also darf `hgmin` wieder herunter, solange Nahes geschuetzt
+    // ist.
+    //
+    // Was die Tiefe hier NICHT darf: selbst entscheiden, was Hintergrund ist.
+    // Zweimal probiert, zweimal gescheitert — die linke Halsseite hat in der
+    // Karte 47,4 von 255 und die Wand 49,4, also denselben Wert. Das Modell
+    // liest den tiefen Schatten am Hals-Schulter-Uebergang als Hintergrund.
+    // Als Schwelle riss das einen Keil aus dem Hals (27 statt 830 Punkte, und
+    // keine Schwelle half); ins Wachstum gezogen flutete es das ganze Shirt
+    // (freigestellt 82 % statt 70), weil ein einziger Einstieg genuegt und die
+    // Toleranzregel den Rest erledigt.
+    const nahSw = NAHTIEFE * 255;
+    const istNah = p => tief && MASKE !== 'bunt' && tief[p * 4] > nahSw;
+    // Und die Gegenrichtung: was laut Karte WEITER WEG liegt als alles an der
+    // Person, darf auch dann Wand sein, wenn es dunkel ist. Genau das ist der
+    // Schlagschatten — er liegt auf der Wand, also in Wandentfernung.
+    //
+    // Der Regler daran ist der Grund, warum `hgmin` nicht gesenkt werden muss.
+    // Erster Anlauf war `hgmin` 0.30 -> 0.15, weil der Schatten mit lum 0.267
+    // unter 0.30 liegt. Das hat funktioniert, aber es ist eine GLOBALE
+    // Helligkeitsschwelle, und das Shirt liegt mit 0.186 in derselben Gegend:
+    // gemessen verlor es 7 353 Pixel, mehr als das Doppelte dessen, was der
+    // Schatten ueberhaupt gross ist (3 057). Dazu Hals -1 989, Gesicht -1 453,
+    // Haare -256. Moritz hat es im Bild gesehen, bevor ich es gemessen hatte.
+    //
+    // Der belastbare Unterschied ist nicht die Helligkeit, sondern die TIEFE:
+    // Schatten 13..22 von 255, Shirt 137, Hals 55..64. Eine Schwelle bei 0.12
+    // (=31) trennt das mit Luft nach beiden Seiten.
+    const fernSw = FERNTIEFE * 255;
+    const istFern = p => tief && MASKE !== 'bunt' && tief[p * 4] < fernSw;
+    const wandArtig = p => SCHATTEN && bunt[p] < GRAU
+                        && (lum[p] > HGMIN || istFern(p))
+                        && !istNah(p);
+
+
+    // ---- Maske: was gehoert zur Person? ---------------------------------
+    // Frueher hiess das "Hintergrund freistellen" und diente dazu, die Wand auf
+    // Helligkeit 0 zu setzen. Jetzt ist es die TRENNUNG zwischen den beiden
+    // Ebenen: wo die Maske "Person" sagt, entstehen Figurpunkte, sonst Boden.
+    // Damit traegt sie den ganzen Look — ein Loch faellt auf dunklem Grund
+    // sofort auf. Deshalb wird sie immer gerechnet, nicht mehr nur auf Wunsch.
     //
     // Verfahren: Bereichswachstum von den ECKEN her, nicht ueber eine feste
     // Schwelle. Die Wand hat einen Verlauf (links deutlich dunkler), eine feste
@@ -504,13 +1082,23 @@
     // Bildseiten, ein beliebiges Randpixel koennte also die Person selbst sein.
     const hg = new Uint8Array(anz);           // 1 = Hintergrund
     let frei = 0;
-    if (FREI) {
+    {
       const stapel = new Int32Array(anz);
       let sp = 0;
       // Saat nur, wo es wirklich hell ist — eine dunkle Ecke duerfte sonst
       // anfangen, die Person aufzufressen.
       const saat = p => { if (!hg[p] && lum[p] > 0.45) { hg[p] = 1; stapel[sp++] = p; } };
-      const nimm = (q, l) => !hg[q] && (wandArtig(q) || Math.abs(lum[q] - l) < TOL);
+      // `istNah` sperrt BEIDE Wege, nicht nur `wandArtig`. Vorher steckte es
+      // allein in `wandArtig`, und damit war die Toleranzregel ein Leck: ein
+      // einziger Einstieg irgendwo am Rand der Person genuegte, danach lief
+      // das Wachstum ueber den weichen Verlauf quer durchs Shirt weiter.
+      // Gemessen an genau dieser Klippe — `hgmin` 0.20 -> 0.18 sprang von 68 %
+      // auf 81,7 % freigestellt und von 75 460 auf 46 650 Figurpunkte, also
+      // die halbe Figur bei zwei Hundertsteln Reglerweg. Was die Tiefenkarte
+      // klar als nah ausweist, darf nie Hintergrund werden, egal auf welchem
+      // Weg das Wachstum dorthin kommt.
+      const nimm = (q, l) => !hg[q] && !istNah(q)
+                          && (wandArtig(q) || Math.abs(lum[q] - l) < TOL);
       saat(0); saat(W - 1); saat((H - 1) * W); saat(anz - 1);
       while (sp > 0) {
         const p = stapel[--sp];
@@ -520,14 +1108,227 @@
         if (p >= W)      { const q = p - W; if (nimm(q, l)) { hg[q] = 1; stapel[sp++] = q; } }
         if (p < anz - W) { const q = p + W; if (nimm(q, l)) { hg[q] = 1; stapel[sp++] = q; } }
       }
+    }
+    {
+      // Alles unterhalb der Fotokante gehoert nicht zur Person — dort ist gar
+      // kein Foto mehr, sondern die Grundfarbe.
+      const uy = Math.max(0, Math.min(H, Math.ceil(fotoUnten)));
+      for (let p = uy * W; p < anz; p++) hg[p] = 1;
       for (let p = 0; p < anz; p++) if (hg[p]) frei++;
     }
-
-    if (SCHAERFE > 0) {
-      const weich = weichzeichnen(lum, W, H, RADIUS);
-      for (let p = 0; p < anz; p++)
-        lum[p] = clamp01(lum[p] + SCHAERFE * (lum[p] - weich[p]));
+    // Waagerechte Ausdehnung der Figur — daraus wird weiter unten geeicht, wie
+    // tief sie im Raum sein darf. Ein Mensch ist grob halb so tief wie breit.
+    // Schwerpunkt und Unterkante der Figur. Der Schwerpunkt, nicht die Mitte
+    // des Kastens: die Maske ist hier 374 px breit, also so breit wie die
+    // ganze Buehne (der Arm laeuft rechts aus dem Foto, die Schulter beruehrt
+    // links den Rand). Der Kasten sagt ueber die Lage der Person also nichts.
+    let figSx = 0, figAnz = 0;
+    for (let y = 0; y < H; y++) {
+      const z0 = y * W;
+      for (let x = 0; x < W; x++) {
+        if (hg[z0 + x]) continue;
+        figSx += x; figAnz++;
+      }
     }
+    const figMitte = figAnz ? figSx / figAnz : W / 2;
+    const tFrei = performance.now();
+
+    // ---- Tiefe: die Silhouette aufblasen --------------------------------
+    // Aus einem einzigen Foto gibt es keine echte Tiefe. Was es gibt, ist die
+    // Silhouette — und je weiter ein Pixel von ihrem Rand entfernt liegt, desto
+    // weiter vorn liegt es an einem Koerper. Das ist die Distanztransformation:
+    // zwei Durchgaenge ueber das Bild (Chamfer 3-4), danach steht in `dist` der
+    // Abstand zum naechsten Hintergrundpixel, in Dritteln eines Pixels.
+    // Die Wurzel darauf macht aus der Kegelform eine Woelbung: steil am Rand,
+    // flach in der Mitte, wie ein Arm.
+    const dist = new Float32Array(anz);
+    {
+      const GROSS = 1e9;
+      for (let p = 0; p < anz; p++) dist[p] = hg[p] ? 0 : GROSS;
+      for (let y = 0; y < H; y++) {
+        const z0 = y * W;
+        for (let x = 0; x < W; x++) {
+          const p = z0 + x;
+          if (dist[p] === 0) continue;
+          let m = dist[p];
+          if (x > 0)              m = Math.min(m, dist[p - 1] + 3);
+          if (y > 0)              m = Math.min(m, dist[p - W] + 3);
+          if (y > 0 && x > 0)     m = Math.min(m, dist[p - W - 1] + 4);
+          if (y > 0 && x < W - 1) m = Math.min(m, dist[p - W + 1] + 4);
+          dist[p] = m;
+        }
+      }
+      for (let y = H - 1; y >= 0; y--) {
+        const z0 = y * W;
+        for (let x = W - 1; x >= 0; x--) {
+          const p = z0 + x;
+          if (dist[p] === 0) continue;
+          let m = dist[p];
+          if (x < W - 1)              m = Math.min(m, dist[p + 1] + 3);
+          if (y < H - 1)              m = Math.min(m, dist[p + W] + 3);
+          if (y < H - 1 && x < W - 1) m = Math.min(m, dist[p + W + 1] + 4);
+          if (y < H - 1 && x > 0)     m = Math.min(m, dist[p + W - 1] + 4);
+          dist[p] = m;
+        }
+      }
+    }
+    // Rand der Silhouette: hoechstens anderthalb Pixel vom Hintergrund weg.
+    // Faellt als Nebenprodukt der Distanztransformation ab, kostet also nichts.
+    const istRand = p => dist[p] > 0 && dist[p] <= 4.5;
+
+    // Tiefe je Pixel, 0 = hinten, 1 = vorn. Zwei Quellen, gleiche Skala.
+    const tiefeP = new Float32Array(anz);
+    if (tief) {
+      // Normiert wird NUR ueber die Figur, mit denselben 2/98-Perzentilen wie
+      // die Tonwertspreizung weiter unten. Ueber das ganze Bild gerechnet
+      // bestimmte die Wand die Skala und die Person bliebe flach — genau
+      // dieser Fehler stand schon einmal in der Spreizung.
+      const hist = new Uint32Array(256);
+      let z = 0;
+      for (let p = 0; p < anz; p++) if (!hg[p]) { hist[tief[p * 4]]++; z++; }
+      let u = 0, o = 255;
+      if (z > 32) {
+        let acc = 0;
+        for (let v = 0; v < 256; v++) { acc += hist[v]; if (acc >= z * 0.02) { u = v; break; } }
+        acc = 0;
+        for (let v = 255; v >= 0; v--) { acc += hist[v]; if (acc >= z * 0.02) { o = v; break; } }
+      }
+      const spanne = Math.max(1, o - u);
+      for (let p = 0; p < anz; p++) tiefeP[p] = clamp01((tief[p * 4] - u) / spanne);
+    } else {
+      // Rueckfall ohne Karte: die Silhouette aufblasen. Je weiter ein Pixel vom
+      // Rand entfernt liegt, desto weiter vorn — die Wurzel macht aus dem Kegel
+      // eine Woelbung. Das ist eine Vermutung ueber die Form, keine Messung:
+      // duenne Dinge landen hinten, auch wenn sie vorn sind. Deshalb ist die
+      // Karte die Vorgabe.
+      let dmax = 0;
+      for (let p = 0; p < anz; p++) if (dist[p] > dmax && dist[p] < 1e8) dmax = dist[p];
+      const aufblas = AUFBLAS > 0 ? AUFBLAS : Math.max(4, dmax / 3);
+      for (let p = 0; p < anz; p++) tiefeP[p] = Math.sqrt(clamp01(dist[p] / 3 / aufblas));
+    }
+    // NORMALE aus der Tiefenkarte, und daraus zwei Felder:
+    //   ndl  — N mal L, die eigentliche Beleuchtung.
+    //   rand — 1 - nz, wie weit die Flaeche von der Kamera wegkippt.
+    //
+    // Vorher stand hier `sqrt(dx*dx + dy*dy)`, der BETRAG des Gefaelles. Der
+    // ist rotationsinvariant und weiss deshalb nicht, WOHIN eine Flaeche
+    // zeigt — er kennt nur "steil" und "flach", also Kante und keine Kante.
+    // Damit war jede Helligkeit, die daraus kam, zwangslaeufig ein Umriss.
+    // Aus denselben zwei Ableitungen faellt die volle Normale ab; es fehlte
+    // nur das Vorzeichen und die Normierung.
+    //
+    // 1 = gehoert zur Person. Traegt alle drei Weichzeichner unten.
+    const drin = new Float32Array(anz);
+    for (let p = 0; p < anz; p++) drin[p] = hg[p] ? 0 : 1;
+    nennerCache.clear();   // die Maske ist neu, der Nenner also auch
+    const dH = halbieren(drin, W, H);   // Maske in halber Aufloesung
+
+    // Ein Durchgang, kein Dreieckskern. Zwei Durchgaenge mit halbem Radius
+    // waeren glatter (die Kastenkanten stehen sonst als Stufen in der
+    // Beleuchtung), aber im fertigen Bild ist davon nichts zu sehen: die
+    // Punktwolke ist selbst koerniger als die Stufe. Kostet dafuer zwei
+    // Weichzeichner-Durchgaenge weniger im Aufbau.
+    const ndl  = new Float32Array(anz);
+    const rand = new Float32Array(anz);
+    {
+      const tH = halbieren(tiefeP, W, H);
+      const zg = weichzeichnenMaskiert(tH.a, dH.a, tH.w, tH.h,
+                                       Math.max(1, NRADIUS >> 1));
+      const w = LICHT * Math.PI / 180;
+      // Licht steht schraeg vor der Figur; z-Anteil fest, damit `licht` nur
+      // die Richtung dreht und nicht auch die Gesamthelligkeit aendert.
+      let lx = Math.cos(w), ly = -Math.sin(w), lz = 0.85;
+      const ll = Math.hypot(lx, ly, lz);
+      lx /= ll; ly /= ll; lz /= ll;
+      const w2 = tH.w, h2 = tH.h;
+      const n2 = new Float32Array(w2 * h2), r2 = new Float32Array(w2 * h2);
+      // In halber Aufloesung ist ein Pixel doppelt so breit, die Steigung je
+      // Pixel also doppelt so gross — deshalb NSKALA halbieren, damit
+      // `?nskala=` dieselbe Bedeutung behaelt wie vorher.
+      const sk = NSKALA * 0.5;
+      for (let y = 1; y < h2 - 1; y++) {
+        const z0 = y * w2;
+        for (let x = 1; x < w2 - 1; x++) {
+          const q = z0 + x;
+          const dx = (zg[q + 1] - zg[q - 1]) * 0.5 * sk;
+          const dy = (zg[q + w2] - zg[q - w2]) * 0.5 * sk;
+          // N = normalize(-dx, -dy, 1). Die Karte ist inverse Tiefe (hell =
+          // nah), also zeigt +z zur Kamera und die Vorzeichen stimmen so.
+          const il = 1 / Math.sqrt(dx * dx + dy * dy + 1);
+          const nx = -dx * il, ny = -dy * il, nz = il;
+          const d = nx * lx + ny * ly + nz * lz;
+          n2[q] = d > 0 ? d : 0;
+          r2[q] = 1 - nz;
+        }
+      }
+      verdoppeln(n2, w2, h2, W, H, ndl);
+      verdoppeln(r2, w2, h2, W, H, rand);
+    }
+    const tTiefe = performance.now();
+
+    // Lokaler Kontrast MIT SCHWELLE. Ohne Schwelle verstaerkt die
+    // Unschaerfemaske jeden Unterschied zur Nachbarschaft — also auch die
+    // Struktur der Wand und das Rauschen der Kamera. Vor heller Wand stand
+    // dadurch die halbe Buehne voller senkrechter Baender; nachgemessen war es
+    // eine Helligkeitsschwankung von rund 6 %, ohne Periodizitaet, und mit
+    // `?schaerfe=0` verschwand sie. Nur wollte ich die Schaerfe ja gerade
+    // wegen Kette und Ringen.
+    // Der Unterschied ist die HOEHE des Ausschlags: Wandstruktur ist flach,
+    // eine Kette auf schwarzem Shirt ist ein Sprung. Alles unterhalb der
+    // Schwelle bleibt liegen, darueber wird voll verstaerkt.
+    // STRUKTUR statt Belichtung. Der Ausschlag gegen die Nachbarschaft wird
+    // nicht nur zum Nachschaerfen benutzt, sondern aufgehoben: er ist genau
+    // das, was der Hologramm-Look aus dem Foto braucht. Eine ausgefressene
+    // Fläche wie der Unterarm ist darin flach (also nichts), eine Kette auf
+    // schwarzem Shirt ein Sprung. Deshalb traegt der Arm nicht mehr die halbe
+    // Bildhelligkeit, obwohl er im Foto der hellste Fleck ist.
+    // ZWEI Massstaebe, und das ist der Kern des Ganzen:
+    //   det — kleiner Radius: Kette, Ringe, Brillenrand, Naehte.
+    //   ton — GROSSER Radius: die Tonwerte des Gesichts, Stirn gegen
+    //         Augenhoehle, Falten im Shirt.
+    // Der grosse Radius nimmt die GLOBALE Belichtung heraus, behaelt aber die
+    // Modellierung. Genau das war gesucht: der Unterarm ist weiss, weil der
+    // Blitz ihn ausgefressen hat — gegen seine eigene Umgebung ist er flach.
+    // Das Gesicht ist gegen seine Umgebung stark moduliert und bleibt.
+    //
+    // Erster Versuch war, das Foto nur ueber den kleinen Radius einzubringen.
+    // Kette und Druck kamen damit sauber heraus, aber das GESICHT verschwand:
+    // es lebt von Tonwerten, nicht von feinen Kanten.
+    const ton = new Float32Array(anz);
+    {
+      // ASYMMETRISCH: aufhellen voll, abdunkeln nur gedaempft.
+      //
+      // Ein Weichzeichner mit grossem Radius hebt neben einer hellen Stelle
+      // den oertlichen Mittelwert an — und alles Dunklere direkt daneben
+      // rutscht dadurch auf null. Das ist der klassische Halo, und er sah hier
+      // aus wie ein Schlagschatten: ein dunkler Saum links neben dem hellen
+      // Kopf, ein Streifen unter dem hellen Kinn, und ein Umriss um JEDEN
+      // hellen Finger. Genau daran war es zu erkennen — eine Wand wirft keinen
+      // Schatten um einzelne Finger.
+      // Gegenprobe: mit HTON = 0 waren alle drei weg.
+      const lH = halbieren(lum, W, H);
+      const grobH = weichzeichnenMaskiert(lH.a, dH.a, lH.w, lH.h,
+                                          Math.max(1, TONRADIUS >> 1));
+      const grob = verdoppeln(grobH, lH.w, lH.h, W, H);
+      for (let p = 0; p < anz; p++) {
+        const d = lum[p] - grob[p];
+        ton[p] = clamp01(0.5 + TONSKALA * (d > 0 ? d : d * TONDUNKEL));
+      }
+    }
+
+    const det = new Float32Array(anz);
+    if (SCHAERFE > 0) {
+      const weich = weichzeichnenMaskiert(lum, drin, W, H, RADIUS);
+      for (let p = 0; p < anz; p++) {
+        let d = lum[p] - weich[p];
+        if (d > SCHWELLE) d -= SCHWELLE;
+        else if (d < -SCHWELLE) d += SCHWELLE;
+        else d = 0;
+        det[p] = d;
+        lum[p] = clamp01(lum[p] + SCHAERFE * d);
+      }
+    }
+    const tSchaerfe = performance.now();
 
     // ---- Tonwerte spreizen, NUR ueber dem Motiv -------------------------
     // Vorher lief die Spreizung ueber das ganze Bild. Da mehr als die Haelfte
@@ -547,6 +1348,14 @@
         lo = u / 255; hi = Math.max(lo + 0.05, o / 255);
       }
     }
+    // KEIN Rauschen auf der Helligkeit. Die Wand hat ueber ihre ganze Breite
+    // nur 24 Stufen (gemessen an der Vorlage: 199..226), das sah nach der
+    // Ursache der senkrechten Baender aus. Zweimal eingebaut, zweimal
+    // nebeneinander verglichen (Staerke 0, 1, 2, 4) — beide Male kein
+    // sichtbarer Unterschied. Die Baender kamen erst von der Strichstaerke
+    // (der inzwischen geloeschten `dicke`) und dann vom lokalen Kontrast ohne
+    // Schwelle (siehe SCHWELLE).
+    // Nicht ein drittes Mal einbauen.
     const hell = i => {
       const p = i >> 2;
       if (hg[p]) return 0;                    // Hintergrund traegt nichts bei
@@ -558,63 +1367,248 @@
     // Erst sammeln, dann in typisierte Felder giessen: beim Ringmuster haengt
     // die Punktzahl davon ab, wie viel jedes Rings ueberhaupt in der Buehne
     // liegt — das laesst sich nicht vorher ausrechnen, nur zaehlen.
-    const sx = [], sy = [], sl = [];
+    // sart: 0 = Figur, 1 = Bodenring, 2 = Staub, 3 = Randlicht der Figur.
+    // Kameraparameter. Stehen hier oben, weil schon die Figur ihre Tiefe
+    // daraus ableitet.
+    // Hauptpunkt der Kamera. Frueher lagen hier Horizont und Ringmittelpunkt
+    // des Bodens; ohne Boden ist der Hauptpunkt schlicht die Bildmitte, wie
+    // bei einer Lochkamera ueblich.
+    const pMx = W / 2, pMy = H / 2;
 
-    if (KREISE) {
-      const cx = CX * W, cy = CY * H;
-      // Bis in die weiteste Ecke, sonst blieben Ecken der Buehne leer.
-      const rMax = Math.hypot(Math.max(cx, W - cx), Math.max(cy, H - cy));
-      for (let r = linien; r <= rMax; r += linien) {
-        // Winkelschritt aus der Bogenlaenge: sonst saessen die Punkte innen
-        // dicht und aussen weit auseinander.
-        const schritt = punkt / r;
-        for (let a = 0; a < Math.PI * 2; a += schritt) {
-          const co = Math.cos(a), si = Math.sin(a);
-          const mx = (cx + r * co) | 0, my = (cy + r * si) | 0;
-          if (mx < 0 || mx >= W || my < 0 || my >= H) continue;
-          const l = hell((my * W + mx) * 4);
-          // Auslenkung RADIAL nach innen, je heller. Das ist der Effekt.
-          const rr = r - l * relief;
-          sx.push(cx + rr * co); sy.push(cy + rr * si); sl.push(l);
+    // szc: Tiefe VOR DER KAMERA, in Welteinheiten. Damit
+    // laesst sich jeder Punkt exakt auf seine Weltposition zurueckrechnen,
+    // und alle Sorten drehen sich mit derselben Formel.
+    const sx = [], sy = [], sl = [], sz = [], szc = [], sart = [];
+    // Entfernung der Figur. Ohne Boden gibt es nichts mehr, woran sie sich
+    // ausrichten muesste — und der Ausschlag beim Schwenken haengt gar nicht
+    // daran: die Verschiebung ist BRENN·(reliefTiefe/zfig)·sin(w), und weil
+    // reliefTiefe als Anteil von zfig definiert ist, kuerzt sich zfig heraus.
+    // Der Wert legt also nur fest, wie stark die Perspektive ueberhaupt
+    // greift. ?raum= ist der Regler, der wirklich etwas tut.
+    const zfig = ZFIG > 0 ? ZFIG : 8;
+    // Wie tief die Figur ist, als ANTEIL ihrer Entfernung. Physikalisch
+    // gelesen: die Kamera steht HOEHE = 1 ueber dem Boden, eine Welteinheit
+    // ist also rund Augenhoehe (1,6 m), und zfig = 2,2 heisst gut 3,5 m
+    // Abstand. Ein Mensch ist ungefaehr 30 cm tief, mit vorgestrecktem Arm
+    // rund 70 cm — das sind 0,44 Einheiten, also ein knappes Fuenftel.
+    //
+    // NICHT aus der Maskenbreite ableiten, wie zuerst versucht: die ist hier
+    // die ganze Buehne. Daraus wurde eine Figur, die 40 % ihrer Entfernung
+    // tief war, und bei 20 Grad schwang sie heftig aus statt zu schwenken.
+    // ?raum= regelt nach.
+    const reliefTiefe = RAUM * 0.2 * zfig;
+    // Weltposition der Drehachse: senkrecht DURCH DIE FIGUR. Vorher lag sie
+    // bei bx, also beim Ringmittelpunkt — und der steht mit bodenx=1.9 gut
+    // 700 px rechts neben der Buehne. Die Figur schwenkte dadurch weit aus,
+    // statt zu stehen und den Raum um sich ziehen zu lassen.
+    const xAchse = (figMitte - pMx) * zfig / BRENN;
+
+    // ---- 1. Figur --------------------------------------------------------
+    // Zeilenraster, nicht Ringe. Im Vorbild ist die Figur eine MASSE mit feiner
+    // waagerechter Struktur; Ringe wuerden hier wieder Linien ergeben, und
+    // genau die haben ihr bisher die eigene Kontur genommen.
+    const figZiel = Math.max(2000, ZIEL * ANTEIL);
+    const motivPx = anz - frei;
+    const kFig = Math.max(1, Math.sqrt(motivPx / (FIGLINIEN * FIGPUNKTE) / figZiel));
+    const figLinien = ZEIGE === 'maske' ? 1 : Math.max(1, Math.round(FIGLINIEN * kFig));
+    const figPunkt  = ZEIGE === 'maske' ? 1 : Math.max(1, Math.round(FIGPUNKTE * kFig));
+    // Uebergang in Staub an der Fotounterkante: das Foto ist ein Brustbild, die
+    // Person hoert dort an einer schnurgeraden Kante auf. Statt eines
+    // Farbverlaufs im Bild (der die Maske aufweichen wuerde) fallen hier
+    // einfach immer mehr Punkte weg, je naeher die Kante kommt.
+    // Helligkeit eines Figurpunktes. Nicht mehr die Belichtung des Fotos,
+    // sondern die Form: wie nah, wie schraeg — und ein Hauch Vorlage fuer
+    // Kette, Ringe und Brille.
+    const hlSkala = HLINIEN;
+    // Struktur an dieser Stelle: Gefaelle der Tiefe plus feiner Bildkontrast.
+    // Traegt doppelt — sie bestimmt die Helligkeit UND wie dicht abgetastet wird.
+    // DUNKLE und HELLE Kanten getrennt gewichtet. Augenbrauen, Brillenrand,
+    // Pupillen, Nasenloecher und die Kette im Gegenlicht sind alle DUNKLER als
+    // ihre Umgebung; das Korn der Haare und Glanzlichter auf der Haut sind
+    // heller. Beide gleich zu verstaerken (der reine Betrag) liess das Haar
+    // das Gesicht uebertoenen — mit Schwelle 0 war der Kopf eine helle Masse.
+    // Dunkle Kanten hell zu zeichnen ist ausserdem genau das, was ein Scan
+    // tut: er zeichnet Konturen, nicht Beleuchtung.
+    // Feine Struktur aus dem Foto — dunkle und helle Kanten getrennt
+    // gewichtet (Augenbrauen, Brillenrand, Pupillen sind dunkler als ihre
+    // Umgebung, Haarkorn und Glanzlichter heller).
+    const detail = p => {
+      const d = det[p];
+      return clamp01((d < 0 ? -d * HDUNKEL : d * HHELL) * HDETAIL);
+    };
+    // Wo wird dicht abgetastet: wo Struktur ist, egal aus welcher Quelle.
+    const struktur = p => HFOTO * detail(p) + rand[p];
+
+    const hologramm = (p, nah, l) => {
+      // Einzelne Terme sichtbar machen. Ohne das rate ich, welcher Summand
+      // ein Bild dominiert — und genau daran habe ich drei Runden verloren:
+      // erst war die Maske schuld, dann ein Halo, dann `hkante`, und keines
+      // davon stimmte. Ein Term, ein Bild, keine Vermutung.
+      switch (ZEIGE) {
+        case 'maske':  return 1;
+        case 'ton':    return ton[p];
+        case 'detail': return detail(p);
+        case 'albedo': return (HMATERIAL + HTON * ton[p] + HFOTO * detail(p)) * 0.5;
+        case 'licht':  return HAMBIENT + (1 - HAMBIENT) * ndl[p];
+        case 'ndl':    return ndl[p];
+        case 'rand':   return rand[p];
+        case 'nah':    return nah;
+      }
+      // ALBEDO mal BELEUCHTUNG. Das Foto sagt WAS es ist, die Normale sagt
+      // WIE es steht. Getrennt gehalten ist das der ganze Unterschied zum
+      // "Foto mit Punkten drauf": die Beleuchtung kommt nicht mehr aus der
+      // Kamera, sondern aus der Form.
+      const albedo = HMATERIAL + HTON * ton[p] + HFOTO * detail(p);
+      const licht  = HAMBIENT + (1 - HAMBIENT) * ndl[p];
+      // Streiflicht additiv, nicht multiplikativ: eine Silhouette leuchtet
+      // auch dort, wo kein Licht hinfaellt — das macht das Hologramm.
+      let b = albedo * licht
+            + HRAND * rand[p]
+            + HTIEFE * nah * nah;
+      if (hlSkala > 0) {
+        // Dreieckswelle ueber die Tiefe: gleichmaessige Baender, ohne Sprung
+        // an der Nahtstelle. Ein Sinus waere hier eine Tabelle wert, aber das
+        // laeuft nur beim Aufbau.
+        const f = nah * hlSkala % 1;
+        b += HLSTAERKE * (1 - Math.abs(f * 2 - 1));
+      }
+      return HELL * b;   // nicht geklemmt: das Addieren deckelt selbst
+    };
+
+    const saumBand = Math.max(1, ih * SAUM);
+    const saumVon = fotoUnten - saumBand;
+    // Jede Zeile und jede Spalte durchgehen, aber nur einen Teil davon
+    // behalten: das grobe Raster ueberall, jedes Pixel dort, wo Struktur ist.
+    for (let y = 0; y < H; y++) {
+      const z0 = y * W;
+      const aufZeile = (y % figLinien) === 0;
+      const halt = (SAUM > 0 && y > saumVon)
+                 ? clamp01((fotoUnten - y) / saumBand) : 1;
+      for (let x = 0; x < W; x++) {
+        const p = z0 + x;
+        if (hg[p]) continue;
+        if (!(FEIN > 0 && struktur(p) > FEIN)
+            && !(aufZeile && (x % figPunkt) === 0)) continue;
+        if (halt < 1 && Math.random() > halt * halt) continue;
+        const l = hell(p * 4);
+        // Tiefe: Abstand zum Silhouettenrand, in Pixeln (dist zaehlt Drittel).
+        // Die Wurzel macht aus dem Kegel eine Woelbung — steil am Rand, flach
+        // in der Mitte, wie ein Arm.
+        const nah = tiefeP[p];
+        // STOCHASTISCH abtasten statt auf dem Gitter. Die Punkte entstehen
+        // sonst auf ganzen Pixeln, und dann kann auch das Subpixel-Splatting
+        // unten nichts verteilen: bei Spaltenabstand 2 bleibt jede zweite
+        // Spalte leer und das Bild ist senkrecht gestreift. Ein Zufallsversatz
+        // innerhalb der eigenen Rasterzelle kostet nichts, aendert die
+        // Punktzahl nicht und tauscht das Streifenmuster gegen Koernung —
+        // und Koernung ist bei einer Punktwolke genau das Richtige.
+        sx.push(x + (Math.random() - 0.5) * figPunkt);
+        sy.push(y - l * relief + (Math.random() - 0.5) * figLinien);
+        sl.push(hologramm(p, nah, l));
+        sz.push(nah * TIEFE);
+        // Streuung in der Tiefe: ohne sie ist die Figur eine Haut, mit ihr
+        // eine Wolke. Beim Schwenken ist das der Unterschied zwischen einem
+        // kippenden Blatt und einem Koerper.
+        szc.push(zfig - (nah + (Math.random() - 0.5) * WOLKE) * reliefTiefe);
+        sart.push(0);
+      }
+    }
+
+    // Randlicht in einem EIGENEN Durchgang, jedes Randpixel einzeln. Ueber das
+    // Zeilenraster oben ging das nicht: die Silhouette ist ein Pixel breit, und
+    // bei Zeilenabstand 2 traf sie nur jede zweite Zeile — gemessen 497 Punkte
+    // fuer den ganzen Umriss, also eine gestrichelte Linie statt einer Kante.
+    // Ein voller Durchgang ueber das Bild kostet einmalig ein paar Millisekunden.
+    // Laeuft immer, auch bei `?randlicht=0`. Der Regler ist die HELLIGKEITS-
+    // untergrenze, nicht der Schalter fuer die Abtastung — die dichte Kante
+    // braucht das Bild in jedem Fall, sonst zerfaellt die Silhouette wieder
+    // zur gestrichelten Linie. Kostet 940 von 84 500 Punkten.
+    {
+      for (let y = 0; y < H; y++) {
+        const z0 = y * W;
+        const halt = (SAUM > 0 && y > saumVon)
+                   ? clamp01((fotoUnten - y) / saumBand) : 1;
+        for (let x = 0; x < W; x++) {
+          const p = z0 + x;
+          if (!istRand(p)) continue;
+          if (halt < 1 && Math.random() > halt * halt) continue;
+          const nah = tiefeP[p];
+          sx.push(x); sy.push(y);
+          // Nicht hier klemmen — das erledigt die Zusammenstellung weiter
+          // unten einmal fuer alle Randpunkte. Zweimal geklemmt war es vorher.
+          sl.push(hologramm(p, nah, hell(p * 4)));
+          sz.push(nah * TIEFE);
+          szc.push(zfig - nah * reliefTiefe); sart.push(3);
         }
       }
-    } else {
-      for (let y = 0; y < H; y += linien)
-        for (let x = 0; x < W; x += punkt) {
-          const l = hell((y * W + x) * 4);
-          sx.push(x); sy.push(y - l * relief); sl.push(l);   // nach oben
-        }
     }
+
+    // ---- 2. Staub --------------------------------------------------------
+    // Frei im Raum um die Figur, nicht mehr auf einer Bodenebene: es gibt
+    // keinen Boden mehr. Gewuerfelt wird in WELTkoordinaten in einem Quader
+    // um sie herum, damit die Koerner beim Schwenken richtig mitwandern —
+    // ein Staubkorn dicht vor ihr muss weiter laufen als eines dahinter.
+    const staubZiel = Math.round(ZIEL * STAUB / Math.max(1, k * k));
+    for (let i = 0; i < staubZiel; i++) {
+      const Z = zfig * (0.45 + Math.random() * 1.6);
+      const gx = pMx + (Math.random() - 0.5) * W * 2.2 * Z / zfig;
+      const gy = pMy + (Math.random() - 0.5) * H * 1.6 * Z / zfig;
+      if (gx < -W || gx > 2 * W || gy < -H || gy > 2 * H) continue;
+      sx.push(gx); sy.push(gy);
+      sl.push(STAUBHELL * (0.15 + Math.random() * 0.5));
+      sz.push(0); szc.push(Z); sart.push(2);
+    }
+
+    sorten = { figur: 0, rand: 0, staub: 0 };
+    for (let i = 0; i < sart.length; i++) {
+      const a = sart[i];
+      if (a === 0) sorten.figur++; else if (a === 3) sorten.rand++;
+      else sorten.staub++;
+    }
+    pBx = pMx; pYh = pMy; pZax = zfig; pXax = xAchse;
+    raumWerte = { zfig: +zfig.toFixed(2), xAchse: +xAchse.toFixed(2),
+                  reliefTiefe: +reliefTiefe.toFixed(2),
+                  figMitteX: Math.round(figMitte),
+                  hauptpunkt: Math.round(pMx) + ',' + Math.round(pMy) };
+    const tRaster = performance.now();
 
     n = sx.length;
     Dx = new Float32Array(n); Dy = new Float32Array(n);
     Dr1 = new Float32Array(n); Dr2 = new Float32Array(n);
-    Dd = new Float32Array(n); Drgb = new Uint32Array(n);
-    Ds = new Uint8Array(n);
+    Dd = new Float32Array(n); Dh = new Float32Array(n);
+    Ep = new Uint16Array(n);   // Phase der Eigenbewegung
+    Ee = new Uint8Array(n);    // Verzoegerung im Einflug, 0..255
+    Dz = new Float32Array(n);  // Tiefe, 0 = Bodenebene
+    // Punktsorte bleibt erhalten (0 Figur, 1 Boden, 2 Staub, 3 Randlicht).
+    // Ohne das laesst sich hinterher nichts mehr nach Sorte auswerten —
+    // und genau das brauchte die Messung Hand gegen Brust.
+    Dart = new Uint8Array(n);
+    Dzc = new Float32Array(n);   // Entfernung zur Kamera, in Welteinheiten
+    DzcB = new Float32Array(n);  // dasselbe / BRENN, damit je Bild EINE Division bleibt
 
     for (let k = 0; k < n; k++) {
-      Dx[k] = sx[k]; Dy[k] = sy[k];
+      Dx[k] = sx[k]; Dy[k] = sy[k]; Dz[k] = sz[k];
+      Dzc[k] = szc[k]; DzcB[k] = szc[k] / BRENN;
+      const art = sart[k];
+      Dart[k] = art;
 
-      // Helligkeit mit Boden: im Dunkeln bleiben die Linien als schwache
-      // Boegen stehen, statt zu verschwinden. Genau das macht die Vorlage —
-      // der schwarze Hintergrund ist dort von duennen Ringen durchzogen.
-      const b = BODEN + (1 - BODEN) * Math.pow(sl[k], 0.85);
-      let r, g, bl;
-      if (TINT) {
-        // Rot zieht frueh auf voll, Gruen und Blau erst in den Lichtern: dort
-        // kippt es ins Weissglut, ohne dass die Mitteltoene rosa werden.
-        r  = Math.round(255 * Math.min(1, b * 1.25));
-        g  = Math.round(255 * Math.pow(b, 2.2) * 0.85);
-        bl = Math.round(255 * Math.pow(b, 3.4) * 0.75);
-      } else {
-        const i = ((Math.min(H - 1, Math.max(0, sy[k] | 0)) * W)
-                 + Math.min(W - 1, Math.max(0, sx[k] | 0))) * 4;
-        r = px[i]; g = px[i+1]; bl = px[i+2];
-      }
-      Drgb[k] = (bl << 16) | (g << 8) | r;   // little endian: 0xAABBGGRR
-      // Helle Punkte werden dicker und schliessen sich zu Graten, dunkle
-      // bleiben einzeln stehen — daher die duennen Boegen im Hintergrund.
-      Ds[k] = Math.max(1, Math.min(dicke, Math.round(b * dicke)));
+      // sl traegt beim Hologramm schon die fertige Helligkeit aus der
+      // Geometrie. Hier kommt nur noch zweierlei dazu:
+      //
+      // RANDLICHT als Untergrenze fuer die Silhouette, damit die Kontur eine
+      // durchgehende Kante bleibt und nicht zur Punktreihe zerfaellt.
+      //
+      // Der MATERIALSOCKEL stand frueher hier obendrauf. Er gehoert ins
+      // Albedo und steckt jetzt dort (HMATERIAL in `hologramm`) — hier
+      // addiert waere er ein zweites Mal drin und wuerde ausserdem die
+      // Beleuchtung umgehen: eine unbeleuchtete Flaeche saehe genauso hell
+      // aus wie eine beleuchtete, und damit waere die ganze Modellierung
+      // wieder weg. Genau diese Art doppelter Term war der Grund, warum sich
+      // die Regler gegenseitig aufgehoben haben.
+      let b = sl[k];
+      if (art === 3) b = Math.max(RANDLICHT, b);
+
+      Dh[k] = b;   // nur die Helligkeit; die Farbe kommt aus der Rampe
 
       // Zerfall. u laeuft von 0 in der Mitte bis 1 am aeusseren Rand der
       // zerfallenden Seite; aussen loest sich zuerst auf, das liest sich als
@@ -631,9 +1625,33 @@
       Dd[k] = (u + franse) <= 0 ? 99
             : (1 - clamp01(u)) * 0.7 + Math.random() * 0.35;
       Dr1[k] = Math.random(); Dr2[k] = Math.random();
+
+      Ep[k] = (Math.random() * 1024) | 0;
+      // Staffelung des Einflugs. Ueberwiegend zufaellig, mit leichter Neigung
+      // zur stehenden Seite hin: die Figur setzt sich von der Seite her
+      // zusammen, die spaeter NICHT zerfaellt. Waere die Neigung stark, waere es
+      // wieder eine Linie, die durchs Bild laeuft — genau das soll weg.
+      const pos = LINKS ? sx[k] / W : 1 - sx[k] / W;
+      Ee[k] = clamp01(0.35 * pos + 0.65 * Math.random()) * 255;
+    }
+
+    // Die Punktdaten stehen — einmal in die GPU-Puffer, danach je Bild nur
+    // noch Uniforms.
+    if (GL && gl && !glAus) {
+      try { glMasse(W, H); glFuellen(); glBereit = true; }
+      catch (e) { glAus = String(e.message || e); glBereit = false; }
     }
 
     bauZeit = performance.now() - t0;
+    const e2 = performance.now();
+    bauPhasen = {
+      vorlage:  Math.round(tVorlage - t0),
+      maske:    Math.round(tFrei - tVorlage),
+      tiefe:    Math.round(tTiefe - tFrei),
+      schaerfe: Math.round(tSchaerfe - tTiefe),
+      raster:   Math.round(tRaster - tSchaerfe),
+      felder:   Math.round(e2 - tRaster)
+    };
     bereit = true;
   }
 
@@ -653,8 +1671,17 @@
     const neu = SW !== bauSW || SH !== bauSH;
     // dpr bewusst 1: die Punkte sind feines Korn, bei dpr 2 kostete alles das
     // Vierfache fuer keinen sichtbaren Gewinn.
-    cv.width = SW; cv.height = SH;
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    //
+    // Nur zuweisen, wenn sich wirklich etwas geaendert hat: eine Zuweisung an
+    // cv.width LOESCHT die Leinwand, auch wenn derselbe Wert draufsteht. Der
+    // ResizeObserver feuert aber staendig — auf dem Handy schon, wenn die
+    // Adressleiste auf- und zugeht. Bisher fiel das nicht auf, weil das
+    // naechste Bild sofort wieder zeichnet; sichtbar wurde es erst, als die
+    // Schleife fuer Standbilder angehalten war und das Bild schwarz blieb.
+    if (cv.width !== SW || cv.height !== SH) {
+      cv.width = SW; cv.height = SH;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+    }
     return neu;
   }
 
@@ -666,6 +1693,65 @@
       clearTimeout(bauTimer);
       bauTimer = setTimeout(() => { aufbauen(); draw(eased); }, 120);
     }
+  }
+
+  // ---- Beruehrungsspur --------------------------------------------------
+  // Ein Zeigerereignis legt einen neuen Spurpunkt an. Seine Staerke kommt aus
+  // der quadrierten Strecke seit der letzten Position, genau wie im Vorbild
+  // (`Math.min(dd * 10000, 1)`, dort in Bildanteilen). Ein Prozent der Breite
+  // ergibt volle Kraft; ein ruhender Finger legt gar nichts an.
+  function stempeln(schirmX, schirmY) {
+    if (!F || SPUR <= 0) return;
+    // Zeiger in Pufferkoordinaten: die Buehne zeigt den Puffer um panX versetzt.
+    const bx = schirmX - panX, by = schirmY;
+    if (letzterZeiger) {
+      const dx = bx - letzterZeiger[0], dy = by - letzterZeiger[1];
+      const eins = W * 0.012;
+      const kraft = Math.min((dx * dx + dy * dy) / (eins * eins), 1);
+      if (kraft > 0.02) {
+        spurPunkte.push({ x: bx, y: by, alter: 0, kraft });
+        // Deckel: mehr als das passt in SPUR_ALT Bilder ohnehin nicht sinnvoll
+        // uebereinander, und die Liste wird sonst bei einem langen Wisch lang.
+        if (spurPunkte.length > 80) spurPunkte.shift();
+      }
+    }
+    letzterZeiger = [bx, by];
+  }
+
+  // Feld aus der Punktliste neu zeichnen, einmal je Bild. Jeder Punkt altert
+  // dabei und traegt mit einer Glockenkurve bei: die ersten 30 % seines Lebens
+  // blendet er auf, die restlichen 70 % ab. Genau das macht, dass die Spur dem
+  // Finger nachwaechst, statt nur zu verblassen.
+  function spurFeld() {
+    if (!F) return;
+    if (!spurPunkte.length) {
+      if (spurAktiv) { F.fill(0); spurAktiv = false; }
+      return;                              // ruhig: die Spur kostet gar nichts
+    }
+    F.fill(0);
+    for (let i = spurPunkte.length - 1; i >= 0; i--) {
+      const p = spurPunkte[i];
+      if (++p.alter > SPUR_ALT) { spurPunkte.splice(i, 1); continue; }
+      const l = p.alter / SPUR_ALT;
+      const staerke = p.kraft * (l < 0.3
+        ? Math.sin(l / 0.3 * 1.5708)                    // auf
+        : Math.sin((1 - (l - 0.3) / 0.7) * 1.5708));    // ab
+      const cx = p.x / 8, cy = p.y / 8;
+      const x0 = Math.max(0, Math.floor(cx - SPUR_R)), x1 = Math.min(gw - 1, Math.ceil(cx + SPUR_R));
+      const y0 = Math.max(0, Math.floor(cy - SPUR_R)), y1 = Math.min(gh - 1, Math.ceil(cy + SPUR_R));
+      for (let gy = y0; gy <= y1; gy++) {
+        const zeile = gy * gw, dy = gy - cy;
+        for (let gx = x0; gx <= x1; gx++) {
+          const dx = gx - cx;
+          const d = Math.sqrt(dx * dx + dy * dy);
+          if (d > SPUR_R) continue;
+          const k = zeile + gx;
+          const v = staerke * (1 - d / SPUR_R);
+          if (v > F[k]) F[k] = v;          // groesster Wert gewinnt, nicht Summe
+        }
+      }
+    }
+    spurAktiv = true;
   }
 
   function readScroll() {
@@ -683,13 +1769,334 @@
   // Ausbauweg, falls der Effekt doch auf grosse Schirme soll: Puffer auf ~1400
   // px deckeln und beim Zeichnen hochskalieren (imageSmoothingEnabled = false,
   // die Punkte werden dann groebere Bloecke — was zum Look passt).
-  function punkte(dis) {
-    buf32.fill(0);
+
+  // ---- WebGL2-Pfad (?gl=an) ---------------------------------------------
+  // Dieselben Punktdaten, dieselbe Rechnung — nur laeuft sie je Punkt im
+  // Vertex-Shader statt in JavaScript, und ein Punkt ist ein WEICHER Sprite
+  // statt eines harten Pixels. Das ist der eigentliche Gewinn: die CPU kann
+  // gar keinen weichen Punkt zeichnen, ohne fuer jeden neun Pixel anzufassen.
+  //
+  // Gemessen auf dieser Maschine (Intel UHD 620, 390x844, weiche Sprites,
+  // additiv): 55 000 Punkte 1.21 ms, 200 000 3.52 ms, 400 000 5.19 ms. Der
+  // CPU-Pfad liegt bei 84 000 Punkten und 4.5 ms.
+  //
+  // WICHTIG und ebenfalls gemessen: 400 000 Positionen je Bild hochzuladen
+  // kostet 30 ms. Die Puffer werden deshalb EINMAL beim Aufbau gefuellt, und
+  // alles Bewegliche (Winkel, Einflug, Zerfall, Puls) sind Uniforms.
+  //
+  // Zwei Durchgaenge, wie im Vorbild (Codrops/UntilLabs):
+  //   1. Punkte additiv in eine Float-Textur — gesammelt wird eine reine
+  //      HELLIGKEIT, genau wie `acc` im CPU-Pfad.
+  //   2. Vollbild-Durchgang, der die Farbrampe darauf anwendet.
+  // Ohne den zweiten Durchgang ginge die Rampe verloren: additives Blenden
+  // kann keine nichtlineare Kennlinie nachbilden, und gerade die laesst
+  // ueberlagerte Punkte weiss ausgluehen.
+  const GL = q.get('gl') === 'an';
+  const PGROESSE = zahl('punktgroesse', 2.6, 1, 12);
+  let gcv = null, gl = null, glProg = null, glRampe = null, glFbo = null,
+      glTex = null, glSpur = null, glVoll = null, glLeer = null,
+      glBuf = {}, glU = {}, glW = 0, glH = 0;
+
+  const glShader = (typ, src) => {
+    const s = gl.createShader(typ);
+    gl.shaderSource(s, src); gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS))
+      throw new Error(gl.getShaderInfoLog(s));
+    return s;
+  };
+  const glProgramm = (vs, fs) => {
+    const p = gl.createProgram();
+    gl.attachShader(p, glShader(gl.VERTEX_SHADER, vs));
+    gl.attachShader(p, glShader(gl.FRAGMENT_SHADER, fs));
+    gl.linkProgram(p);
+    if (!gl.getProgramParameter(p, gl.LINK_STATUS))
+      throw new Error(gl.getProgramInfoLog(p));
+    return p;
+  };
+
+  const VS = `#version 300 es
+  in vec4 aPos;   // x, y, zc, zc/BRENN
+  in vec4 aVar;   // Helligkeit, Zerfallsrang, zufall1, zufall2
+  in vec2 aPh;    // Pulsphase 0..1, Einflugverzoegerung 0..1
+  uniform vec2 uSchirm;      // W, H
+  uniform vec2 uDreh;        // cos, sin
+  uniform vec4 uKamera;      // bx, yh, zAchse, xAchse
+  uniform float uBrenn, uEin, uDis, uAtem, uT, uGroesse, uPegel;
+  uniform vec4 uFlug;        // EINFLUG, EIN_VERZ, DRIFT, SPREAD
+  uniform float uRichtung;
+  uniform sampler2D uSpur;
+  uniform float uSpurStaerke;
+  out float vHell;
+  const float TAU = 6.283185307;
+  void main() {
+    float x = aPos.x, y = aPos.y, a = 1.0;
+    float z0 = aPos.z, zc = z0;
+
+    // Schwenk: Lochkamera, exakt zurueckgerechnet — keine Kleinwinkelnaeherung.
+    if (uDreh.y != 0.0) {
+      float dX = (x - uKamera.x) * aPos.w - uKamera.w;
+      float dZ = zc - uKamera.z;
+      float Xr = uKamera.w + dX * uDreh.x + dZ * uDreh.y;
+      zc = uKamera.z - dX * uDreh.y + dZ * uDreh.x;
+      if (zc < 0.05) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
+      float s = 1.0 / zc;
+      x = uKamera.x + Xr * uBrenn * s;
+      y = uKamera.y + (y - uKamera.y) * z0 * s;
+    }
+
+    if (uEin < 1.0) {
+      float g = (uEin - aPh.y * uFlug.y) / (1.0 - uFlug.y);
+      if (g <= 0.0) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
+      if (g < 1.0) {
+        float r = 1.0 - g, rest = r * r * r;
+        float w = TAU * aVar.z;
+        float d = rest * uFlug.x * (0.3 + aVar.w * 1.4);
+        x += d * cos(w); y += d * sin(w);
+        a = g * (2.0 - g);
+      }
+    }
+
+    if (uDis > 0.0 && aVar.y < 90.0) {
+      float kante = uDis * (1.0 + uFlug.w);
+      float p = clamp(kante - aVar.y * uFlug.w, 0.0, 1.0);
+      if (p >= 1.0) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
+      float e = p * p;
+      x += uRichtung * e * uFlug.z * (0.35 + aVar.z * 1.3);
+      y += e * uFlug.z * 0.55 * (aVar.w - 0.65);
+      a *= 1.0 - p;
+    }
+
+    // Beruehrungsspur: das Feld gibt nur die STAERKE, die Richtung bringt
+    // jeder Punkt als eigenen Zufallswinkel mit — wie im CPU-Pfad.
+    if (uSpurStaerke > 0.0) {
+      float f = texture(uSpur, vec2(x, y) / uSchirm).r;
+      if (f > 0.0) {
+        float w = TAU * aVar.z;
+        float d = f * uSpurStaerke;
+        x += d * cos(w); y += d * sin(w);
+        a += f;
+      }
+    }
+
+    if (uAtem > 0.0) a += uAtem * sin(TAU * (aPh.x + uT));
+
+    // Der weiche Sprite verteilt dieselbe Helligkeit ueber mehrere Pixel,
+    // deshalb der Pegel: sonst haette ?hell= im GL-Pfad eine andere Bedeutung
+    // als im CPU-Pfad und jeder Vergleich waere wertlos.
+    vHell = aVar.x * max(a, 0.0) * uPegel;
+    gl_PointSize = uGroesse * clamp(z0 / zc, 0.6, 2.2);
+    // y der Leinwand zeigt nach unten, das Geraetekoordinatensystem nach oben.
+    vec2 ndc = vec2(x, y) / uSchirm * 2.0 - 1.0;
+    gl_Position = vec4(ndc.x, -ndc.y, 0.0, 1.0);
+  }`;
+
+  const FS = `#version 300 es
+  precision highp float;
+  in float vHell;
+  out vec4 o;
+  void main() {
+    // Weicher Abfall zum Rand. Genau das kann der CPU-Pfad nicht: dort ist
+    // ein Punkt ein Pixel mit harter Kante, und Licht hat keine Kanten.
+    float d = length(gl_PointCoord - 0.5);
+    float a = pow(1.0 - smoothstep(0.0, 0.5, d), 1.5);
+    o = vec4(vHell * a, 0.0, 0.0, 1.0);
+  }`;
+
+  const VOLL_VS = `#version 300 es
+  out vec2 vUv;
+  void main() {
+    vec2 p = vec2(float((gl_VertexID << 1) & 2), float(gl_VertexID & 2));
+    vUv = p; gl_Position = vec4(p * 2.0 - 1.0, 0.0, 1.0);
+  }`;
+  const VOLL_FS = `#version 300 es
+  precision highp float;
+  in vec2 vUv;
+  uniform sampler2D uAcc;
+  uniform sampler2D uRampe;
+  out vec4 o;
+  void main() {
+    // KEIN Spiegeln hier. Der Vertex-Shader dreht y bereits um (die Leinwand
+    // zaehlt nach unten, das Geraetekoordinatensystem nach oben); ein zweites
+    // Mal an dieser Stelle hob das auf und stellte die Figur auf den Kopf.
+    float v = texture(uAcc, vUv).r;
+    o = vec4(texture(uRampe, vec2(clamp(v, 0.0, 1.0), 0.5)).rgb, 1.0);
+  }`;
+
+  function glStart() {
+    gcv = document.createElement('canvas');
+    gl = gcv.getContext('webgl2', { alpha: false, antialias: false });
+    if (!gl) return false;
+    if (!gl.getExtension('EXT_color_buffer_float')) return false;  // Float-FBO noetig
+    glProg = glProgramm(VS, FS);
+    glVoll = glProgramm(VOLL_VS, VOLL_FS);
+    for (const nm of ['uSchirm','uDreh','uKamera','uBrenn','uEin','uDis','uAtem',
+                      'uT','uGroesse','uPegel','uFlug','uRichtung','uSpur','uSpurStaerke'])
+      glU[nm] = gl.getUniformLocation(glProg, nm);
+    glU.uAcc   = gl.getUniformLocation(glVoll, 'uAcc');
+    glU.uRampe = gl.getUniformLocation(glVoll, 'uRampe');
+
+    // Farbrampe als 256x1-Textur. `rampe` liegt als 0xAABBGGRR vor.
+    const rgba = new Uint8Array(256 * 4);
+    for (let i = 0; i < 256; i++) {
+      const v = rampe[i];
+      rgba[i * 4]     =  v         & 255;
+      rgba[i * 4 + 1] = (v >>> 8)  & 255;
+      rgba[i * 4 + 2] = (v >>> 16) & 255;
+      rgba[i * 4 + 3] = 255;
+    }
+    const glatt = (t) => {
+      gl.bindTexture(gl.TEXTURE_2D, t);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    };
+    glRampe = gl.createTexture();
+    glatt(glRampe);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 256, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, rgba);
+    glSpur = gl.createTexture(); glatt(glSpur);
+
+    for (const nm of ['aPos', 'aVar', 'aPh']) glBuf[nm] = gl.createBuffer();
+    gl.disable(gl.DEPTH_TEST);
+    return true;
+  }
+
+  // Groesse der Zeichenflaeche und das Ziel fuer den ersten Durchgang.
+  function glMasse(w, h) {
+    if (glW === w && glH === h) return;
+    glW = w; glH = h; gcv.width = w; gcv.height = h;
+    if (glTex) { gl.deleteTexture(glTex); gl.deleteFramebuffer(glFbo); }
+    glTex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, glTex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.R16F, w, h, 0, gl.RED, gl.HALF_FLOAT, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    glFbo = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, glFbo);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, glTex, 0);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  }
+
+  // EINMAL je Aufbau: die statischen Punktdaten in die Puffer.
+  function glFuellen() {
+    const P = new Float32Array(n * 4), V = new Float32Array(n * 4), Ph = new Float32Array(n * 2);
+    for (let i = 0; i < n; i++) {
+      P[i * 4] = Dx[i]; P[i * 4 + 1] = Dy[i]; P[i * 4 + 2] = Dzc[i]; P[i * 4 + 3] = DzcB[i];
+      V[i * 4] = Dh[i]; V[i * 4 + 1] = Dd[i]; V[i * 4 + 2] = Dr1[i]; V[i * 4 + 3] = Dr2[i];
+      Ph[i * 2] = Ep[i] / 1024; Ph[i * 2 + 1] = Ee[i] / 255;
+    }
+    gl.useProgram(glProg);
+    const lade = (nm, feld, gr) => {
+      gl.bindBuffer(gl.ARRAY_BUFFER, glBuf[nm]);
+      gl.bufferData(gl.ARRAY_BUFFER, feld, gl.STATIC_DRAW);
+      const l = gl.getAttribLocation(glProg, nm);
+      gl.enableVertexAttribArray(l);
+      gl.vertexAttribPointer(l, gr, gl.FLOAT, false, 0, 0);
+    };
+    lade('aPos', P, 4); lade('aVar', V, 4); lade('aPh', Ph, 2);
+    glLeer = new Float32Array(gw * gh);
+  }
+
+  function glZeichnen(dis, ein, wi) {
+    gl.useProgram(glProg);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, glFbo);
+    gl.viewport(0, 0, glW, glH);
+    gl.clearColor(0, 0, 0, 1);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.ONE, gl.ONE);        // reines Addieren, wie `acc` im CPU-Pfad
+
+    const spur = spurAktiv ? SPUR : 0;
+    gl.uniform2f(glU.uSchirm, glW, glH);
+    gl.uniform2f(glU.uDreh, Math.cos(wi), Math.sin(wi));
+    gl.uniform4f(glU.uKamera, pBx, pYh, pZax, pXax);
+    gl.uniform1f(glU.uBrenn, BRENN);
+    gl.uniform1f(glU.uEin, ein);
+    gl.uniform1f(glU.uDis, dis);
+    gl.uniform1f(glU.uAtem, reduce ? 0 : ATEM);
+    gl.uniform1f(glU.uT, (atemTick & 1023) / 1024);
+    gl.uniform1f(glU.uGroesse, PGROESSE);
+    // Ein Sprite der Groesse s deckt rund 0.16*s*s Pixel mit Gewicht — gemessen
+    // am Integral des Abfalls oben. Ohne diesen Ausgleich waere der GL-Pfad bei
+    // gleichem ?hell= um ein Vielfaches heller als der CPU-Pfad.
+    gl.uniform1f(glU.uPegel, 1 / (PGROESSE * PGROESSE * 0.16));
+    gl.uniform4f(glU.uFlug, EINFLUG, EIN_VERZ, DRIFT, SPREAD);
+    gl.uniform1f(glU.uRichtung, LINKS ? -1 : 1);
+    gl.uniform1f(glU.uSpurStaerke, spur);
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, glSpur);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.R16F, gw, gh, 0, gl.RED, gl.FLOAT,
+                  spur > 0 ? F : glLeer);
+    gl.uniform1i(glU.uSpur, 1);
+    gl.drawArrays(gl.POINTS, 0, n);
+
+    // Zweiter Durchgang: Helligkeit durch die Farbrampe auf den Schirm.
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.disable(gl.BLEND);
+    gl.useProgram(glVoll);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, glTex);
+    gl.uniform1i(glU.uAcc, 0);
+    gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, glRampe);
+    gl.uniform1i(glU.uRampe, 2);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+  }
+
+  function punkte(dis, ein, wi) {
     const kante = dis * (1 + SPREAD);
     const richtung = LINKS ? -1 : 1;
+    const einAktiv = ein < 1;
+    const einSpanne = 1 - EIN_VERZ;
+    const atem = reduce ? 0 : ATEM;
+    const t16 = atemTick & 1023;
+    const spur = spurAktiv ? SPUR : 0;
+    // Schwenken. Die Punkte liegen in Bildschirmpixeln; zusammen mit der
+    // Kameratiefe laesst sich daraus die Weltposition EXAKT zurueckrechnen
+    // (Lochkamera), also ist das keine Naeherung fuer kleine Winkel:
+    //   X  = (x - bx) · Z / BRENN
+    //   X' = X·cos + (Z - ZAX)·sin
+    //   Z' = ZAX + (Z - ZAX)·cos - X·sin
+    // Gedreht wird um eine senkrechte Achse in der Tiefe der Figur, damit sie
+    // stehen bleibt und der Boden unter ihr wegzieht. Bei Winkel 0 kostet der
+    // ganze Block nichts — wie die Spur auch.
+    const dreht = wi !== 0;
+    const co = Math.cos(wi), si = Math.sin(wi);
 
     for (let i = 0; i < n; i++) {
-      let x = Dx[i], y = Dy[i];
+      let x = Dx[i], y = Dy[i], a = 1;
+      const z0 = Dzc[i];
+      let zc = z0;
+
+      if (dreht) {
+        const dX = (x - pBx) * DzcB[i] - pXax;   // Ruecktransformation, exakt
+        const dZ = zc - pZax;
+        const Xr = pXax + dX * co + dZ * si;
+        zc = pZax - dX * si + dZ * co;
+        if (zc < 0.05) continue;                 // hinter der Kamera gelandet
+        const s = 1 / zc;                        // die EINE Division je Punkt und Bild
+        x = pBx + Xr * BRENN * s;
+        y = pYh + (y - pYh) * z0 * s;
+      }
+
+
+      // Einflug: der Punkt kommt aus einer zufaelligen Richtung herein und
+      // bremst in seine Position hinein. Richtung aus der Sinustabelle, Betrag
+      // je Punkt verschieden — sonst laege der Startzustand auf einem Kreis.
+      if (einAktiv) {
+        const g = (ein - (Ee[i] / 255) * EIN_VERZ) / einSpanne;
+        if (g <= 0) continue;                    // dieser Punkt startet spaeter
+        if (g < 1) {
+          const r = 1 - g, rest = r * r * r;     // ausklingend, nicht gleichfoermig
+          const w = (Dr1[i] * 1024) | 0;
+          const d = rest * EINFLUG * (0.3 + Dr2[i] * 1.4);
+          x += d * SIN[(w + 256) & 1023];        // +256 = Kosinus
+          y += d * SIN[w];
+          // Helligkeit zieht schneller an als der Fortschritt. Linear war der
+          // halbe Einflug praktisch unsichtbar: wenige Punkte, und die dunkel.
+          a = g * (2 - g);
+        }
+      }
 
       // Wer zerfaellt, steht schon beim Aufbau fest (Dd = 99 heisst: steht).
       // An der Ursprungsposition entschieden, nicht an der aktuellen — sonst
@@ -701,24 +2108,90 @@
         const e = p * p;                 // beschleunigt statt gleichfoermig
         x += richtung * e * DRIFT * (0.35 + Dr1[i] * 1.3);
         y += e * DRIFT * 0.55 * (Dr2[i] - 0.65);   // leicht nach oben versetzt
+        a *= 1 - p;
       }
 
-      const xi = x | 0, yi = y | 0;
-      if (xi < 0 || xi >= W || yi < 0 || yi >= H) continue;
-      const farbe = Drgb[i] | ((255 - ((p * 255) | 0)) << 24);
+      // Ganzzahlige Position nur noch fuer die Spur (Feldindex) und die
+      // Randpruefung. Die Nachkommastellen werden unten gebraucht — sie
+      // sind der Unterschied zwischen einem Raster und Licht.
+      let xi = x | 0, yi = y | 0;
+      if (xi < 0 || xi >= W - 1 || yi < 0 || yi >= H - 1) continue;
 
-      // Im Flug duenner werden: ein fliegender 2x2-Block sieht aus wie Konfetti,
-      // ein einzelnes Pixel wie Staub.
-      const bs = p > 0.3 ? 1 : Ds[i];
-      if (bs === 1) { buf32[yi * W + xi] = farbe; continue; }
-      for (let by = 0; by < bs; by++) {
-        const yy = yi + by; if (yy >= H) break;
-        const zeile = yy * W;
-        for (let bx = 0; bx < bs; bx++) {
-          const xx = xi + bx; if (xx >= W) break;
-          buf32[zeile + xx] = farbe;
+      // Beruehrungsspur. Das Feld gibt nur die STAERKE; die Richtung ist der
+      // eigene Zufallswinkel des Punktes — wie im Vorbild cos(angle)/sin(angle)
+      // mit einem Zufallswert je Partikel. Deshalb stiebt jeder woandershin und
+      // es fizzelt, statt eine saubere Furche zu ziehen.
+      // Abgefragt an der RUHEposition, wie dort auch. Und nur, wenn ueberhaupt
+      // etwas im Feld steht: im Ruhezustand kostet die Spur exakt nichts.
+      if (spur > 0) {
+        const f = F[(yi >> 3) * gw + (xi >> 3)];
+        if (f > 0) {
+          const w = (Dr1[i] * 1024) | 0;
+          const d = f * spur;
+          x += d * SIN[(w + 256) & 1023];
+          y += d * SIN[w];
+          xi = x | 0; yi = y | 0;
+          if (xi < 0 || xi >= W - 1 || yi < 0 || yi >= H - 1) continue;
+          a += f;    // im Vorbild kommen sie dabei nach vorn, hier: heller
         }
       }
+
+      // Die Strichstaerke (Ds, ?dicke=) ist raus: sie war der Ersatz dafuer,
+      // dass ein Punkt nur ein ganzes Pixel treffen konnte — helle Punkte
+      // wurden zu 2x2-Kloetzen, um die Rasterluecken zu schliessen. Das
+      // Subpixel-Splatting unten macht das von selbst und ohne Schwelle, an
+      // der Punkte hin- und herkippen konnten.
+
+
+      // Eigenbewegung, ganz zuletzt und nur auf die Helligkeit.
+      if (atem > 0) a += atem * SIN[(Ep[i] + t16) & 1023];
+      // ADDIEREN, nicht ueberschreiben. Ein Hologramm glueht: wo sich Punkte
+      // ueberlagern, wird es heller. Damit entfaellt die ganze Verdeckungsfrage
+      // — kein Tiefenpuffer, keine Abdichtung der Rasterluecken, und die
+      // Reihenfolge der Punkte ist egal.
+      //
+      // Gesammelt wird nur eine HELLIGKEIT je Pixel, nicht drei Farbkanaele.
+      // Das geht, weil das Bild einfarbig ist: die Farbe kommt erst ganz zum
+      // Schluss aus einer Rampe. Ein Feld statt dreien.
+      //
+      // SUBPIXEL. Vorher stand hier `acc[yi*W + xi] += h` mit `xi = x|0` —
+      // jeder Punkt rastete auf ein ganzes Pixel und wurde als harter Klotz
+      // gemalt. Daher der Rasterlook (Licht hat keine Kanten) und daher das
+      // Flimmern beim Schwenken: +-10 Grad verschieben einen Punkt um
+      // Bruchteile eines Pixels, und die sprangen dann.
+      // Jetzt wird die Helligkeit bilinear auf die vier Nachbarn verteilt.
+      // Das ist die CPU-Fassung dessen, was auf der GPU ein weicher Sprite
+      // waere: vier Additionen statt einer, dafuer Position mit
+      // Nachkommastellen.
+      const h = Dh[i] * (a > 0 ? a : 0);
+      const fx = x - xi, fy = y - yi;
+      const o = yi * W + xi;
+      const oben = h * (1 - fy), unten = h * fy;
+      acc[o]         += oben * (1 - fx);
+      acc[o + 1]     += oben * fx;
+      acc[o + W]     += unten * (1 - fx);
+      acc[o + W + 1] += unten * fx;
+    }
+
+    // Helligkeit in Farbe uebersetzen — und im selben Durchgang den Speicher
+    // fuer das naechste Bild leeren.
+    //
+    // Gemessen, und das Ergebnis geht in BEIDE Richtungen: auf Handymassen
+    // ist ein Durchgang klar besser (390x844: 7,3 -> 4,2 ms), auf grossen
+    // Schirmen klar schlechter (2560x1440: 37,6 -> 59,7 ms). Die Vermutung,
+    // zwei Durchgaenge seien einfach doppelt so teuer, war also falsch: ein
+    // `fill(0)` ist ein vektorisierter Blockschreibvorgang, waehrend diese
+    // Schleife je Pixel verzweigt und bedingt zurueckschreibt. Solange der
+    // Speicher in den Cache passt, gewinnt der gesparte Durchgang; darueber
+    // gewinnt das schnellere fill.
+    // Der Effekt ist fuers Handy gebaut, deshalb steht es so. Muss er je auf
+    // grosse Schirme, ist die Umkehrung eine Zeile — und der Puffer zu
+    // deckeln (siehe ponytail-Kommentar) waere ohnehin der bessere Weg.
+    for (let o = 0; o < acc.length; o++) {
+      const v = acc[o];
+      if (v <= 0) { buf32[o] = 0; continue; }
+      buf32[o] = rampe[v >= 1 ? 255 : (v * 255) | 0];
+      acc[o] = 0;
     }
     pctx.putImageData(pimg, 0, 0);
   }
@@ -726,44 +2199,61 @@
   function draw(t) {
     if (!bereit) return;
 
-    const scan = clamp01(t / SCAN_TO);
-    const dis  = clamp01((t - DIS_FROM) / (DIS_TO - DIS_FROM));
+    // Der Zerfall ist gebaut, aber aus: erst steht der Raum, dann wird
+    // entschieden, was das Scrollen ausloesen soll. `?zerfall=an` holt ihn zurueck.
+    const dis = ZERFALL ? clamp01((t - DIS_FROM) / (DIS_TO - DIS_FROM)) : 0;
 
-    ctx.fillStyle = '#0B0510';
+    ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, SW, SH);
 
-    punkte(dis);
+    // Winkel des Schwenks. Fest, wenn ?winkel= gesetzt ist (Standbilder und
+    // Messungen), sonst ein langsames Eigenschwenken ueber die Sinustabelle.
+    // Was der SCROLLWEG treibt, ist noch nicht entschieden — deshalb haengt
+    // hier bewusst nur die Zeit dran.
+    winkelJetzt = WINKEL !== null ? WINKEL
+                : reduce ? 0
+                : SCHWENK * SIN[schwenkTick & 1023];
+    if (glBereit) glZeichnen(dis, ein, winkelJetzt * RAD);
+    else punkte(dis, ein, winkelJetzt * RAD);
 
     // Querfahrt: das Fenster wandert ueber den breiteren Puffer. Eine eigene
     // Daempfung braucht es nicht — t ist bereits der gedaempfte Scrollwert.
-    const panX = W > SW ? -Math.round(panVon + (panBis - panVon) * clamp01(t)) : 0;
-
-    // Die Aufdecklinie laeuft ueber die sichtbare Hoehe. Da die Punktflaeche
-    // genau die Buehne ist, ist das hier schlicht H.
-    const scanY = scan * SH;
-
-    ctx.save();
-    // Ist die Linie durch, faellt der Beschnitt weg: ein Clip ueber die ganze
-    // Flaeche kostet sonst in jedem Bild etwas fuer nichts.
-    if (scan < 1) { ctx.beginPath(); ctx.rect(0, 0, SW, scanY); ctx.clip(); }
-    ctx.drawImage(pcv, panX, 0);   // 1:1, kein Punkt geht verloren; panX = Querfahrt
-    ctx.restore();
-
-    if (scan > 0 && scan < 1) {
-      const hoehe = Math.max(2, SH * 0.012);
-      const g = ctx.createLinearGradient(0, scanY - hoehe * 6, 0, scanY + hoehe);
-      g.addColorStop(0,   'rgba(255,40,40,0)');
-      g.addColorStop(0.8, 'rgba(255,60,50,.28)');
-      g.addColorStop(1,   'rgba(255,150,130,.85)');
-      ctx.fillStyle = g;
-      ctx.fillRect(0, scanY - hoehe * 6, SW, hoehe * 7);
-    }
+    panX = W > SW ? -Math.round(panVon + (panBis - panVon) * clamp01(t)) : 0;
+    ctx.drawImage(glBereit ? gcv : pcv, panX, 0);   // 1:1, kein Punkt geht verloren
   }
 
   // ---- Schleife ---------------------------------------------------------
+  // laeuft: nur fuer Standbilder von aussen. Ohne das ueberschreibt der naechste
+  // Bilddurchlauf jeden von Hand gesetzten Zwischenstand, bevor der Screenshot
+  // ausgeloest ist.
+  let laeuft = true;
   const zeiten = [];
   function tick() {
+    // Nach halt() ist meist noch ein Bild angemeldet. Ohne diese Zeile laeuft
+    // es durch und ueberschreibt genau den Zwischenstand, fuer den angehalten
+    // wurde.
+    if (!laeuft) return;
     const t0 = performance.now();
+
+    // Der Einflug laeuft ueber die ZEIT, nicht ueber den Scrollweg: er ist das
+    // Erscheinen der Figur, nicht Teil der Erzaehlung. Er beginnt mit dem
+    // ersten Bild nach dem Aufbau.
+    if (einStart === 0) einStart = t0;
+    // Vorn gestaucht (1-(1-x)^2): der Anfang ist die Zeit, in der auf dem Handy
+    // sonst nichts zu sehen waere, also passiert dort am meisten. Gemessen an
+    // Standbildern: die Figur wird bei rund einem Drittel der Dauer lesbar
+    // statt erst bei gut der Haelfte.
+    const roh = (reduce || EIN_MS <= 0) ? 1 : clamp01((t0 - einStart) / EIN_MS);
+    ein = roh * (2 - roh);
+    // 1024 Tabellenschritte sind ein voller Umlauf; bei Tempo 1 sind das rund
+    // 17 s — langsam genug, dass es als Atmen liest und nicht als Flimmern.
+    atemTick += reduce ? 0 : TEMPO;
+    if (atemTick >= 1024) atemTick -= 1024;
+    // Deutlich langsamer als der Puls: ein voller Hin-und-Her-Schwenk dauert
+    // bei Tempo 1 rund 34 Sekunden. Schneller wirkt es wie ein Karussell.
+    schwenkTick += reduce ? 0 : SCHWENKTEMPO * 0.5;
+    if (schwenkTick >= 1024) schwenkTick -= 1024;
+    spurFeld();
 
     eased += (target - eased) * (reduce ? 1 : DAMPING);
     if (Math.abs(target - eased) < 0.0002) eased = target;
@@ -776,34 +2266,75 @@
     if (zeiten.length > 200) zeiten.shift();
     if (zeiten.length > 20 && (zeiten.length & 15) === 0) {
       const s = [...zeiten].sort((a, b) => a - b);
+      const b = bauPhasen || {};
       hud.textContent =
-        'Fortschritt ' + (eased * 100).toFixed(1) + ' %\n' +
+        'Fortschritt ' + (eased * 100).toFixed(1) + ' %' +
+          '   Einflug ' + (ein * 100).toFixed(0) + ' %\n' +
         'Muster ' + (KREISE ? 'Ringe' : 'Zeilen') +
           '   Punkte ' + n.toLocaleString('de') + '\n' +
         'Linie ' + LINIEN + '  Punkt ' + PUNKTE +
-          '  Relief ' + RELIEF + '  Boden ' + BODEN + '\n' +
+          '  Relief ' + RELIEF + '  Atem ' + ATEM +
+          '  Spur ' + (spurAktiv ? 'an' : 'aus') + '\n' +
         'Bildzeit Median ' + s[s.length >> 1].toFixed(2) + ' ms\n' +
         '          95 %   ' + s[Math.floor(s.length * 0.95)].toFixed(2) + ' ms\n' +
         'Flaeche ' + W + '×' + H + '  Aufbau ' + bauZeit.toFixed(0) + ' ms\n' +
+        '  davon Vorlage ' + b.vorlage + '  Maske ' + b.maske + '  Tiefe ' + b.tiefe + '\n' +
+        '        Schaerfe ' + b.schaerfe + '  Raster ' + b.raster +
+          '  Felder ' + b.felder + '\n' +
         'h = Anzeige aus';
     }
-    requestAnimationFrame(tick);
+    if (laeuft) requestAnimationFrame(tick);
   }
 
   addEventListener('scroll', readScroll, { passive: true });
+  // Ein Zeiger genuegt — pointermove deckt Maus, Stift und Finger ab. Kein
+  // preventDefault: auf dem Handy zieht derselbe Wisch die Seite weiter und
+  // hinterlaesst nebenbei die Spur.
+  const zeiger = e => {
+    const r = stage.getBoundingClientRect();
+    stempeln(e.clientX - r.left, e.clientY - r.top);
+  };
+  stage.addEventListener('pointermove', zeiger, { passive: true });
+  stage.addEventListener('pointerdown', zeiger, { passive: true });
   new ResizeObserver(() => { resize(); readScroll(); }).observe(stage);
   addEventListener('keydown', e => { if (e.key === 'h') hud.classList.toggle('off'); });
   readScroll();
 
   // Fuer die Messung von aussen (Screenshots an festen Punkten).
   window.__face = {
-    springe(v) { target = clamp01(v); eased = target; draw(eased); },
+    // e = Stand des Einflugs; fuer Standbilder ist 1 (fertig) das Richtige.
+    springe(v, e = 1) { target = clamp01(v); eased = target; ein = clamp01(e);
+                        draw(eased); },
+    // Spur von aussen setzen, um sie ohne echte Hand pruefen zu koennen.
+    // Zwei Aufrufe hintereinander noetig: die Staerke kommt aus der Strecke
+    // zwischen zwei Positionen, ein einzelner Punkt hat noch keine.
+    tupfen(x, y) { stempeln(x, y); spurFeld(); draw(eased); },
+    halt()   { laeuft = false; },
+    weiter() { if (!laeuft) { laeuft = true; requestAnimationFrame(tick); } },
     // Baut das Raster sofort neu, ohne die 120-ms-Entprellung abzuwarten.
     // Nur fuer Messungen: im Hintergrund-Tab streckt der Browser jeden Timer
     // auf eine Sekunde, und die Abnahme ueber sieben Breiten lief damit in
     // die Zeitgrenze der Fernsteuerung.
     neuAufbau() { messen(); aufbauen(); draw(eased);
                   return { n, W, H, aufbauMs: Math.round(bauZeit) }; },
+    // Mittlere Tiefe der FIGURpunkte in einem Rechteck (Anteile des
+    // Puffers). Damit laesst sich mit einem einzigen Instrument belegen, ob
+    // die Hand naeher steht als die Brust — vor und nach dem Wechsel der
+    // Tiefenquelle, auf denselben Koordinaten.
+    // Nur zum Messen: mit dem Kontext laesst sich per readPixels die GPU
+    // zum Fertigwerden zwingen. Ohne das misst man beim GL-Pfad nur das
+    // ABSENDEN der Befehle — derselbe Fallstrick wie gl.finish() unter ANGLE.
+    glKontext() { return gl; },
+    tiefe(x0, y0, x1, y1) {
+      const ax = x0 * W, ay = y0 * H, bx = x1 * W, by = y1 * H;
+      let s = 0, z = 0;
+      for (let i = 0; i < n; i++) {
+        if (Dart[i] !== 0) continue;         // nur die Figur, kein Boden/Staub
+        if (Dx[i] < ax || Dx[i] >= bx || Dy[i] < ay || Dy[i] >= by) continue;
+        s += Dz[i]; z++;
+      }
+      return { punkte: z, mittel: z ? +(s / z).toFixed(3) : null };
+    },
     zahlen() {
       const s = [...zeiten].sort((a, b) => a - b);
       return { n, W, H, muster: KREISE ? 'ringe' : 'zeilen',
@@ -811,7 +2342,14 @@
                kasten: letzterKasten, buehne: SW + 'x' + SH, puffer: W + 'x' + H,
                fahrt: Math.round(panVon) + '..' + Math.round(panBis),
                linien: Math.round(LINIEN * skala), punkte: Math.round(PUNKTE * skala),
-               aufbauMs: Math.round(bauZeit),
+               aufbauMs: Math.round(bauZeit), phasen: bauPhasen, sorten,
+               // Zeit vom Laden der Seite bis zum ersten gezeichneten Bild.
+               // Das ist die Zahl, die auf dem Handy zaehlt.
+               ersteBildMs: Math.round(einStart),
+               pfad: glBereit ? 'webgl2' : (glAus ? 'cpu (' + glAus + ')' : 'cpu'),
+               ein: +ein.toFixed(2), spur: spurAktiv,
+               tiefenkarte: tiefeDa, winkel: +winkelJetzt.toFixed(2),
+               raum: raumWerte,
                median: s[s.length >> 1], p95: s[Math.floor(s.length * .95)] };
     }
   };

@@ -1,0 +1,120 @@
+<!doctype html><meta charset=utf-8><title>Einzeichnen</title>
+<!-- Pruefwerkzeug wie _rahmen.html: friert _face.html als Standbild ein und
+     legt eine Malflaeche darueber, damit Moritz zeigen kann, WO etwas nicht
+     stimmt. Gehoert nicht in die Seite.
+     ?v=  Parameter fuer _face.html (Vorgabe: der Stand vor dem 30.08.2026)
+     ?t=  Zeitpunkt im Scrollweg (0.2) -->
+<style>
+  body{margin:0;background:#111;color:#ccc;font:13px system-ui;
+       display:flex;gap:14px;padding:10px;align-items:flex-start}
+  #buehne{position:relative;line-height:0;flex:none}
+  canvas{display:block;height:min(844px,94vh);width:auto}
+  #malen{position:absolute;inset:0;cursor:crosshair;touch-action:none}
+  #werkzeug{display:flex;flex-direction:column;gap:10px;max-width:210px}
+  button{font:13px system-ui;padding:6px 10px;background:#222;color:#ddd;
+         border:1px solid #555;border-radius:4px;cursor:pointer}
+  button:hover{background:#333}
+  button[aria-pressed=true]{background:#444;border-color:#999}
+  .farben{display:flex;gap:6px;flex-wrap:wrap}
+  .farben button{width:26px;height:26px;padding:0;border-radius:50%}
+  label{display:block;color:#888}
+  p{color:#888;line-height:1.5;margin:0}
+</style>
+<div id=buehne>
+  <!-- NICHT display:none — dann ist das iframe 0x0, `_face.html` misst eine
+       leere Buehne und die Kopie bleibt schwarz (genau so passiert). Es
+       braucht echte Masse, also steht es links aus dem Bild geschoben. -->
+  <iframe id=quelle width=390 height=844
+          style="position:absolute;left:-9999px;top:0;border:0"></iframe>
+  <canvas id=grund width=390 height=844></canvas>
+  <canvas id=malen width=390 height=844></canvas>
+</div>
+<div id=werkzeug>
+  <p><b>Zeichne ein, was nicht stimmt.</b> Maus gedrueckt halten. Sag danach
+     Bescheid, dann sehe ich es mir an.</p>
+  <div class=farben id=farben></div>
+  <label>Strichstaerke <span id=dickeAn>4</span></label>
+  <input id=dicke type=range min=1 max=24 value=4>
+  <button id=radierer aria-pressed=false>Radieren</button>
+  <button id=leeren>Alles loeschen</button>
+  <button id=neu>Standbild neu holen</button>
+  <p id=stand>laedt …</p>
+</div>
+<script>
+  const q = new URLSearchParams(location.search);
+  const v = q.get('v') ?? 'hgmin=0.30&randlicht=1&winkel=0';
+  const t = +(q.get('t') || 0.2);
+  const grund = document.getElementById('grund'), gctx = grund.getContext('2d');
+  const malen = document.getElementById('malen'), mctx = malen.getContext('2d');
+  const quelle = document.getElementById('quelle');
+  const stand = document.getElementById('stand');
+
+  // Standbild holen: _face.html laufen lassen, auf den Zeitpunkt springen,
+  // Messanzeige ausblenden, dann die Leinwand einmal herueberkopieren.
+  // Danach ist das iframe egal — gemalt wird auf eine tote Kopie, die sich
+  // nicht mehr bewegt (sonst waeren Atem und Schwenk unter dem Strich).
+  function holen() {
+    stand.textContent = 'laedt …';
+    quelle.src = '_face.html?' + v + '&cb=' + Date.now();
+    quelle.onload = () => setTimeout(() => {
+      try {
+        const w = quelle.contentWindow;
+        w.__face.springe(t);
+        const d = quelle.contentDocument;
+        const hud = d.getElementById('hud'); if (hud) hud.style.display = 'none';
+        w.__face.springe(t);                       // noch einmal, ohne Anzeige
+        gctx.clearRect(0, 0, 390, 844);
+        gctx.drawImage(d.getElementById('face'), 0, 0);
+        stand.textContent = 'Standbild steht. ' + v;
+      } catch (e) { stand.textContent = 'Fehler: ' + e.message; }
+    }, 1200);
+  }
+  holen();
+  document.getElementById('neu').onclick = holen;
+
+  // ---- Malen ----------------------------------------------------------
+  let farbe = '#39ff6a', radiert = false, malt = false;
+  const fb = document.getElementById('farben');
+  ['#39ff6a', '#ffe23d', '#4db5ff', '#ff4d6d', '#ffffff'].forEach((c, i) => {
+    const b = document.createElement('button');
+    b.style.background = c; b.title = c;
+    b.setAttribute('aria-pressed', i === 0);
+    b.onclick = () => { farbe = c; radiert = false; stift();
+      [...fb.children].forEach(x => x.setAttribute('aria-pressed', x === b));
+      document.getElementById('radierer').setAttribute('aria-pressed', false); };
+    fb.appendChild(b);
+  });
+  const dicke = document.getElementById('dicke');
+  dicke.oninput = () => { document.getElementById('dickeAn').textContent = dicke.value; stift(); };
+  function stift() {
+    mctx.lineWidth = +dicke.value;
+    mctx.lineCap = mctx.lineJoin = 'round';
+    mctx.strokeStyle = farbe;
+    // Radieren heisst hier wirklich loeschen, nicht mit Schwarz uebermalen —
+    // sonst bliebe ein schwarzer Fleck ueber dem Bild stehen.
+    mctx.globalCompositeOperation = radiert ? 'destination-out' : 'source-over';
+  }
+  stift();
+  document.getElementById('radierer').onclick = e => {
+    radiert = !radiert; stift();
+    e.currentTarget.setAttribute('aria-pressed', radiert);
+  };
+  document.getElementById('leeren').onclick = () => mctx.clearRect(0, 0, 390, 844);
+
+  // Die Leinwand wird per CSS skaliert, der Zeiger kommt in Seitenpixeln —
+  // also ueber das echte Kaestchen umrechnen, sonst laeuft der Strich weg.
+  const wo = e => {
+    const r = malen.getBoundingClientRect();
+    return [(e.clientX - r.left) * 390 / r.width, (e.clientY - r.top) * 844 / r.height];
+  };
+  malen.addEventListener('pointerdown', e => {
+    malt = true; malen.setPointerCapture(e.pointerId);
+    const [x, y] = wo(e); mctx.beginPath(); mctx.moveTo(x, y);
+    mctx.lineTo(x + 0.01, y); mctx.stroke();      // ein Klick setzt einen Punkt
+  });
+  malen.addEventListener('pointermove', e => {
+    if (!malt) return; const [x, y] = wo(e); mctx.lineTo(x, y); mctx.stroke();
+  });
+  for (const ev of ['pointerup', 'pointercancel'])
+    malen.addEventListener(ev, () => { malt = false; });
+</script>
