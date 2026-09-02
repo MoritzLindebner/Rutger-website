@@ -1,0 +1,211 @@
+<!doctype html>
+<meta charset=utf-8>
+<meta name=viewport content="width=device-width, initial-scale=1">
+<title>Regler — _face.html</title>
+<!--
+  Schieberegler fuer _face.html. Baut KEINE eigene Parameterliste: die Werte,
+  Vorgaben und Grenzen kommen aus `__face.regler`, das _face.html beim Laden
+  selbst fuellt. Eine zweite, von Hand gepflegte Liste stand schon einmal
+  veraltet in _rahmen.html und hat einen Vergleich verfaelscht — deshalb hier
+  gar keine.
+
+  Jede Aenderung laedt das iframe neu, denn _face.html liest seine Parameter
+  einmal beim Start aus der URL. Der Aufbau kostet je nach Buehne 130..600 ms,
+  darum 250 ms Entprellung: waehrend des Ziehens passiert nichts, erst beim
+  Loslassen (bzw. einer Ziehpause) wird gebaut.
+-->
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:#0d0b10; color:#e8e2ef;
+         font:13px/1.45 system-ui, sans-serif;
+         display:flex; gap:12px; padding:12px; min-height:100svh; }
+  #panel { flex:0 0 300px; display:flex; flex-direction:column; gap:10px;
+           max-height:calc(100svh - 24px); overflow:auto; padding-right:4px; }
+  #buehne { flex:1 1 auto; display:flex; align-items:flex-start;
+            justify-content:center; overflow:auto; }
+  iframe { border:1px solid #2c2733; background:#000; display:block; flex:none; }
+
+  fieldset { border:1px solid #2c2733; border-radius:6px; margin:0; padding:8px; }
+  legend { padding:0 4px; color:#9a90a8; font-size:11px; letter-spacing:.08em;
+           text-transform:uppercase; }
+  label.r { display:grid; grid-template-columns:1fr auto; gap:2px 6px;
+            align-items:center; margin:0 0 6px; }
+  label.r > input[type=range] { grid-column:1 / -1; width:100%; margin:0; }
+  .nm { font-family:ui-monospace, monospace; }
+  .vw { font-family:ui-monospace, monospace; color:#c9a3ff; }
+  .vw.std { color:#6f6880; }
+
+  #url { width:100%; font-family:ui-monospace, monospace; font-size:11px;
+         background:#151220; color:#c9a3ff; border:1px solid #2c2733;
+         border-radius:4px; padding:6px; min-height:64px; resize:vertical; }
+  button, select { background:#1d1926; color:#e8e2ef; border:1px solid #3a3347;
+                   border-radius:4px; padding:5px 9px; font:inherit; cursor:pointer; }
+  button:hover { background:#282235; }
+  .reihe { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+  .reihe > label { display:flex; gap:5px; align-items:center; cursor:pointer; }
+  details > summary { cursor:pointer; color:#9a90a8; padding:2px 0; }
+  #filter { width:100%; background:#151220; color:#e8e2ef; border:1px solid #2c2733;
+            border-radius:4px; padding:5px 7px; font:inherit; }
+  @media (max-width:760px) { body { flex-direction:column; }
+                             #panel { flex:none; max-height:none; } }
+</style>
+
+<div id=panel>
+  <fieldset>
+    <legend>Ansicht</legend>
+    <div class=reihe>
+      <select id=groesse>
+        <option value="390x844">390 × 844 — Handy</option>
+        <option value="844x390">844 × 390 — Handy quer</option>
+        <option value="768x1024">768 × 1024</option>
+        <option value="1024x768" selected>1024 × 768</option>
+        <option value="1440x900">1440 × 900</option>
+      </select>
+      <select id=zeige>
+        <option value="">volles Bild</option>
+        <option value="ton">nur ton</option>
+        <option value="detail">nur detail</option>
+        <option value="albedo">nur albedo</option>
+        <option value="licht">nur licht</option>
+        <option value="ndl">nur ndl</option>
+        <option value="rand">nur rand</option>
+        <option value="nah">nur nah</option>
+        <option value="maske">nur maske</option>
+      </select>
+    </div>
+    <div class=reihe style="margin-top:6px">
+      <label><input type=checkbox id=standbild checked> Standbild</label>
+      <label>Winkel <input type=range id=winkel min=-60 max=60 step=1 value=15
+                          style="width:90px"><span class=vw id=winkelW>15</span></label>
+    </div>
+    <label class=r style="margin-top:6px">
+      <span>Scrollstand</span><span class=vw id=fortW>0.50</span>
+      <input type=range id=fort min=0 max=1 step=0.01 value=0.5>
+    </label>
+  </fieldset>
+
+  <div class=reihe>
+    <button id=reset>alles zurücksetzen</button>
+    <button id=kopieren>URL kopieren</button>
+  </div>
+  <textarea id=url readonly spellcheck=false></textarea>
+
+  <input id=filter placeholder="Regler filtern …">
+  <div id=wichtig></div>
+  <details><summary>alle übrigen Regler</summary><div id=rest></div></details>
+</div>
+
+<div id=buehne><iframe id=f></iframe></div>
+
+<script>
+// Die Regler, die fuer Form und Beleuchtung zustaendig sind, stehen oben —
+// reine Anzeigereihenfolge, keine Werte. Wer hier etwas vergisst, findet es
+// unten unter "alle uebrigen"; nichts geht verloren.
+const WICHTIG = ['nradius','nskala','lhoehe','licht','ambient','hrand','htiefe',
+                 'hell','hmaterial','hton','hfoto','hdetail','tonradius','tonskala',
+                 'randlicht','raum','schwenk','zfig'];
+
+const f = document.getElementById('f');
+const $ = id => document.getElementById(id);
+const wert = {};          // nur was vom Standard abweicht
+let std = {};             // name -> {std, lo, hi}
+let bautGerade = 0;
+
+const anfrage = () => {
+  const p = new URLSearchParams();
+  for (const k in wert) p.set(k, wert[k]);
+  if ($('zeige').value) p.set('zeige', $('zeige').value);
+  if ($('standbild').checked) p.set('winkel', $('winkel').value);
+  return p.toString();
+};
+
+// KEIN eigenes Schrittraster. Zuerst eines gerechnet — und dann sass die
+// Vorgabe nicht darauf: `nskala` stand als 698 statt 700 im Feld, `licht` als
+// 136 statt 135. Der Regler sah damit schon beim Laden veraendert aus, obwohl
+// nichts veraendert war, und genau daran scheitert ein Vergleich. `step=any`
+// trifft die Vorgabe exakt; gerundet wird erst der abgelesene Wert.
+const runden = (v, lo, hi) =>
+  Number.isInteger(lo) && Number.isInteger(hi) ? Math.round(v) : +v.toFixed(2);
+
+let entprellen = 0;
+const laden = () => {
+  clearTimeout(entprellen);
+  entprellen = setTimeout(() => {
+    const [w, h] = $('groesse').value.split('x');
+    f.width = w; f.height = h;
+    $('url').value = location.origin + '/_face.html?' + anfrage();
+    f.src = '_face.html?' + anfrage() + '&cb=' + (++bautGerade);
+  }, 250);
+};
+
+// Nach jedem Neuladen: warten bis das Raster steht, dann auf den eingestellten
+// Scrollstand springen. Sonst steht die Buehne leer da — die Figur erscheint
+// erst mit dem Scrollweg, und das iframe scrollt nicht von selbst.
+f.addEventListener('load', async () => {
+  const w = f.contentWindow;
+  for (let i = 0; i < 100; i++) {
+    if (w.__face && w.__face.zahlen().n > 1000) break;
+    await new Promise(r => setTimeout(r, 60));
+  }
+  if (!w.__face) return;
+  if (!Object.keys(std).length) reglerBauen(w.__face.regler);
+  if ($('standbild').checked) { w.__face.halt(); w.__face.springe(+$('fort').value, 1); }
+  else { w.__face.springe(+$('fort').value); }
+});
+
+function reglerBauen(liste) {
+  for (const r of liste) std[r.k] = r;
+  const machen = r => {
+    const l = document.createElement('label');
+    l.className = 'r'; l.dataset.k = r.k;
+    l.innerHTML = '<span class=nm></span><span class="vw std"></span>' +
+                  '<input type=range>';
+    l.querySelector('.nm').textContent = r.k;
+    const inp = l.querySelector('input'), aus = l.querySelector('.vw');
+    inp.min = r.lo; inp.max = r.hi; inp.step = 'any'; inp.value = r.std;
+    aus.textContent = r.std;
+    inp.addEventListener('input', () => {
+      const v = runden(+inp.value, r.lo, r.hi);
+      aus.textContent = v;
+      if (v === r.std) { delete wert[r.k]; aus.classList.add('std'); }
+      else { wert[r.k] = v; aus.classList.remove('std'); }
+      laden();
+    });
+    return l;
+  };
+  const wDiv = $('wichtig'), rDiv = $('rest');
+  for (const k of WICHTIG) if (std[k]) wDiv.append(machen(std[k]));
+  for (const r of liste) if (!WICHTIG.includes(r.k)) rDiv.append(machen(r));
+}
+
+$('filter').addEventListener('input', e => {
+  const s = e.target.value.trim().toLowerCase();
+  for (const l of document.querySelectorAll('label.r[data-k]'))
+    l.style.display = l.dataset.k.includes(s) ? '' : 'none';
+});
+
+$('reset').addEventListener('click', () => {
+  for (const k in wert) delete wert[k];
+  for (const l of document.querySelectorAll('label.r[data-k]')) {
+    const r = std[l.dataset.k];
+    l.querySelector('input').value = r.std;
+    const a = l.querySelector('.vw');
+    a.textContent = r.std; a.classList.add('std');
+  }
+  laden();
+});
+
+$('kopieren').addEventListener('click', () => navigator.clipboard.writeText($('url').value));
+
+for (const id of ['groesse', 'zeige', 'standbild']) $(id).addEventListener('change', laden);
+$('winkel').addEventListener('input', e => { $('winkelW').textContent = e.target.value; laden(); });
+$('fort').addEventListener('input', e => {
+  $('fortW').textContent = (+e.target.value).toFixed(2);
+  const w = f.contentWindow;
+  if (w.__face) $('standbild').checked ? w.__face.springe(+e.target.value, 1)
+                                       : w.__face.springe(+e.target.value);
+});
+
+laden();
+</script>

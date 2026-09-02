@@ -78,10 +78,12 @@
        ?hdetail=0..60    Verstaerkung dieser Struktur (8)
        ?hdunkel= ?hhell= Gewicht dunkler/heller Kanten (1.5 / 0.3)
        ?licht=0..360     Richtung des Lichts in Grad (135 = links oben)
+       ?lhoehe=0.1..3    HOEHE des Lichts ueber der Bildebene (0.55) —
+                         gross = frontal und flach, klein = streifend
        ?ambient=0..1     Grundlicht, damit nichts absaeuft (0.2)
-       ?nradius=1..60    BASISWEITE der Normalen in px (12) — der wichtigste
+       ?nradius=1..60    BASISWEITE der Normalen in px (24) — der wichtigste
                          Regler: klein misst Kanten, gross misst Formen
-       ?nskala=5..1500   Steigung je Tiefeneinheit (250)
+       ?nskala=5..1500   Steigung je Tiefeneinheit (700)
        ?hrand=0..2       Streiflicht an der Silhouette (0.1)
        ?htiefe=0..2      Glut nach Naehe (0.15)
        ?hoehenlinien=    Tiefenbaender wie auf einer Landkarte (0 = aus)
@@ -200,7 +202,13 @@
   // -----------------------------------------------------------------------
 
   const q = new URLSearchParams(location.search);
+  // Jeder Regler traegt sich hier selbst ein: Name, Vorgabe, Grenzen. `_regler.html`
+  // baut seine Schieber daraus, statt eine zweite Liste zu pflegen — genau so eine
+  // zweite Liste stand schon einmal veraltet in `_rahmen.html` und hat einen
+  // Vergleich verfaelscht.
+  const REGLER = [];
   const zahl = (k, std, lo, hi) => {
+    REGLER.push({ k, std, lo, hi });
     // Auf null pruefen, nicht auf NaN: Number(null) ist 0, nicht NaN. Ohne
     // diese Zeile lieferte jeder Parameter, dessen Bereich die Null enthaelt
     // (relief, boden, cx, cy), stumm 0 statt seines Standardwerts — der Effekt
@@ -424,6 +432,13 @@
   // Ableitungen modelliert dagegen: eine wegdrehende Wange wird dunkel,
   // weil sie wegdreht.
   const LICHT   = zahl('licht', 135, 0, 360);  // Richtung in Grad, 135 = links oben
+  // HOEHE des Lichts ueber der Bildebene. Stand fest verdrahtet auf 0.85 und
+  // war damit fast frontal — und ein frontales Licht modelliert nicht: mit
+  // ?zeige=ndl angesehen lag N mal L ueber der ganzen Figur im oberen Drittel,
+  // Schlaefe so hell wie Brustmitte. Ein flacheres Licht trennt zugewandt von
+  // abgewandt, und genau das ist Volumen. 0.55 = rund 29 Grad ueber der
+  // Bildebene; bei 0.45 kippt die rechte Kopfhaelfte schon fast ganz weg.
+  const LHOEHE  = zahl('lhoehe', 0.55, 0.1, 3);
   const HAMBIENT = zahl('ambient', 0.2, 0, 1); // Grundlicht, damit nichts absaeuft
   // BASISWEITE der Ableitung — der Regler, an dem alles haengt. Eine Normale
   // aus dem Unterschied zweier NACHBARpixel misst die Form auf einem Pixel,
@@ -437,12 +452,30 @@
   // (Gegenprobe: dieselbe Staerke ueber 1 Pixel erzwungen — Gesicht 0.23,
   // aber Wand 0.065, also achtmal mehr Rauschen. Die breite Basis ist nicht
   // nur staerker, sie ist sauberer.)
-  const NRADIUS = Math.round(zahl('nradius', 12, 1, 60));
-  const NSKALA  = zahl('nskala', 250, 5, 1500); // Tiefe je Pixel -> Steigung
+  // 24/700 statt 12/250 (31.08.2026). Der Grund ist derselbe wie damals beim
+  // Sprung von 1 auf 12, nur eine Groessenordnung weiter: ein KOPF ist noch
+  // breiter als eine Wange. Bei 12/250 stand `ndl` ueber dem ganzen Schaedel
+  // praktisch flach — mit ?zeige=ndl allein gezeichnet war der Kopf eine
+  // gleichmaessig helle Masse, waehrend Arm und Hand schon eine Lichtseite
+  // hatten. Genau das war Moritz' Befund: "die Arme und Haende passen, aber
+  // ein Kopf ist in echt nicht so flach".
+  // Der Kopf ist hier rund 140 px breit; ueber 24 Pixel gemessen faellt seine
+  // Woelbung als Verlauf an, ueber 12 nicht.
+  const NRADIUS = Math.round(zahl('nradius', 24, 1, 60));
+  const NSKALA  = zahl('nskala', 700, 5, 1500); // Tiefe je Pixel -> Steigung
   // Streiflicht: wie weit die Normale von der Kamera wegzeigt (1 - nz). Das
   // ist die richtige Fassung dessen, was `hkante` genaehert hat, nur auf
   // 0..1 normiert — und der Term, der ein Hologramm zum Leuchten bringt.
   const HRAND  = zahl('hrand', 0.1, 0, 2);
+  // KEINE Hoehlenverdunklung aus `weichgezeichnete Tiefe minus Tiefe`. Gebaut,
+  // mit ?zeige= angesehen, verworfen: der Term ist ein KANTENDETEKTOR, kein
+  // Mass fuer Verdeckung. Am Silhouettenrand mittelt der maskierte
+  // Weichzeichner nur ueber Pixel WEITER INNEN, die naeher liegen — der Rand
+  // sieht deshalb aus wie eine Hoehle, und das Bild bekam einen dunklen Saum
+  // um Kopf und Schulter. Echte Hoehlen (Hals unterm Kinn, Spalt zwischen Arm
+  // und Brust) gingen darin unter.
+  // Das ist derselbe Fehler wie damals |grad z|. Nicht ein drittes Mal bauen —
+  // wer es doch will, muss zuerst den Rand ausnehmen (`dist[p]` steht bereit).
   const HTIEFE = zahl('htiefe', 0.15, 0, 2);   // je naeher, desto heller
   // Hoehenlinien: Baender gleicher Tiefe, wie auf einer Landkarte. VORGABE 0 —
   // ueber einer richtig beleuchteten Flaeche lesen sie sich als Streifen und
@@ -1194,6 +1227,11 @@
         for (let v = 255; v >= 0; v--) { acc += hist[v]; if (acc >= z * 0.02) { o = v; break; } }
       }
       const spanne = Math.max(1, o - u);
+      // NICHT in metrische Tiefe zurueckrechnen (1/(v+keil)). Zweimal gebaut
+      // und gemessen: die Stirnwoelbung steigt nur von 0.112 auf 0.126, und
+      // bezahlt wird das damit, dass Arm und Hand flacher werden — also genau
+      // dort, wo es schon stimmte. Die Karte ist normiert, die Spanne bleibt 1;
+      // wer dem Kopf Tiefe gibt, nimmt sie dem Arm weg.
       for (let p = 0; p < anz; p++) tiefeP[p] = clamp01((tief[p * 4] - u) / spanne);
     } else {
       // Rueckfall ohne Karte: die Silhouette aufblasen. Je weiter ein Pixel vom
@@ -1235,9 +1273,9 @@
       const zg = weichzeichnenMaskiert(tH.a, dH.a, tH.w, tH.h,
                                        Math.max(1, NRADIUS >> 1));
       const w = LICHT * Math.PI / 180;
-      // Licht steht schraeg vor der Figur; z-Anteil fest, damit `licht` nur
-      // die Richtung dreht und nicht auch die Gesamthelligkeit aendert.
-      let lx = Math.cos(w), ly = -Math.sin(w), lz = 0.85;
+      // Licht steht schraeg vor der Figur. `licht` dreht die Richtung,
+      // `lhoehe` kippt es zur Bildebene hin — flach modelliert, frontal nicht.
+      let lx = Math.cos(w), ly = -Math.sin(w), lz = LHOEHE;
       const ll = Math.hypot(lx, ly, lz);
       lx /= ll; ly /= ll; lz /= ll;
       const w2 = tH.w, h2 = tH.h;
@@ -2302,6 +2340,8 @@
 
   // Fuer die Messung von aussen (Screenshots an festen Punkten).
   window.__face = {
+    // Fuer `_regler.html`: die Reglerliste, wie sie beim Laden entstanden ist.
+    regler: REGLER,
     // e = Stand des Einflugs; fuer Standbilder ist 1 (fertig) das Richtige.
     springe(v, e = 1) { target = clamp01(v); eased = target; ein = clamp01(e);
                         draw(eased); },
