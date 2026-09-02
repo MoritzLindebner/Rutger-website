@@ -3,6 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Faerbt die Browserleiste auf dem Handy. Ohne das steht ueber dem schwarzen
+     Intro ein weisser Balken. --ground als Wert, der Verlauf danach ist hell,
+     aber der erste Eindruck ist das Video. -->
+<meta name="theme-color" content="#0E0712">
 <title>Jakob — Vorschau Scroll-Intro</title>
 <style>
   :root {
@@ -13,7 +17,39 @@
     --text:        #F3EEF8;
     --text-muted:  #A297AE;
 
-    --stage-h: 100svh;
+    /* 100lvh, nicht 100svh — die einzige zweite Ausnahme neben #sky, und aus
+       demselben Grund: die Buehne ist formatfuellendes Bild, kein Textkasten.
+       Mit svh bliebe unten ein Streifen Hintergrund stehen, sobald die
+       Adressleiste des Handys einfaehrt und das Fenster hoeher wird als svh.
+       Sie klebt oben, also faengt der sichtbare Bereich immer an ihrer
+       Oberkante an — was unten ueber die kleine Fensterhoehe hinausragt,
+       verdeckt hoechstens die Adressleiste. */
+    --stage-h: calc(100lvh - var(--header-h));
+
+    /* Hoehe der deckenden Leiste auf dem Handy. Am Desktop steht die Navigation
+       nackt ueber dem Bild, dort ist sie 0.
+       DAS IST DIE STELLSCHRAUBE FUER DIE BILDBREITE. Das Material ist quer,
+       hochkant schneidet `cover` seitlich ab — und zwar umso weniger, je
+       flacher die Buehne ist. Gemessen auf 390x844:
+         Header   0 px -> Buehne 844 -> 312 px von 1200 sichtbar (26 %)
+         Header  64 px -> Buehne 780 -> 338 px (28 %)
+         Header 120 px -> Buehne 724 -> 364 px (30 %)
+         Header 168 px -> Buehne 676 -> 390 px (33 %)
+       Der schwarze Balken kaschiert dabei, dass das Bild dort nicht hinreicht.
+       64 ist der Wert, bei dem die Leiste noch Leiste ist; wer mehr Breite
+       will, dreht hier hoch. */
+    --header-h: 0px;
+
+    /* Wie viel PROZENT der Bildbreite auf dem Handy hochkant stehen bleiben.
+       Das ist die Stellschraube; das Seitenverhaeltnis des Bandes rechnet sich
+       daraus (siehe .band). Vorher stand hier das Verhaeltnis selbst — aber
+       niemand denkt in 41/42, und genau das waeren 55 %.
+       Ueberschreibbar per ?sicht=55 zum Vergleichen am Geraet. */
+    --sicht: 75;
+
+    /* Ausblendung der Intro, 0..1. tick() setzt sie; daran haengt der dunkle
+       Grund hinter dem Band. Ohne JS bleibt es bei 0 — Bild steht, Grund steht. */
+    --fade: 0;
 
     /* Breite einer Produktkachel und der Abstand dazwischen. Die Eckwerte sind
        die der Vorlage: 400 px breit mit 30 px Abstand am Desktop, 280/15 auf dem
@@ -101,16 +137,91 @@
      etwa 12 % ueber svh liegt. */
   .intro { height: 360svh; position: relative; }
 
-  /* Kein eigener Hintergrund mehr: #bgfx liegt fest hinter der ganzen Seite,
-     die Stage laesst ihn durchscheinen. */
+  /* Klebt unter der Leiste, nicht unter der Fensterkante: darueber liegt auf
+     dem Handy der deckende Header, und das Bild soll dort anfangen, wo er
+     aufhoert. */
   .stage {
     position: sticky;
-    top: 0;
+    top: var(--header-h);
     height: var(--stage-h);
     overflow: hidden;
     display: grid;
     place-items: center;
     background: transparent;
+  }
+
+  /* Deckender Grund hinter dem Videoband. Notwendig, seit das Band auf dem
+     Handy nicht mehr die ganze Buehne fuellt: dahinter liegt #bgfx, ein heller
+     Verlauf, und ohne diese Flaeche staende das Band mitten in Hellgrau.
+     Zusammen mit dem gleichfarbigen Header ergibt das den durchgehenden
+     schwarzen Balken oben — man sieht nicht, wo die Leiste aufhoert.
+     Blendet mit derselben Zahl weg wie das Video selbst (--fade aus tick()),
+     damit am Ende der Verlauf durchkommt wie bisher. Am Desktop deckt das Band
+     die Buehne ohnehin ganz ab, dort ist die Flaeche unsichtbar. */
+  .stage::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: var(--ground);
+    opacity: calc(1 - var(--fade));
+  }
+
+  /* Fuellt die ganze Buehne mit demselben Frame, nur unscharf und abgedunkelt.
+     Loest den Zielkonflikt, der sonst nicht loesbar ist: das Handy ist 0,46
+     breit-zu-hoch, das Material 1,78 — formatfuellend bleiben 26 % der
+     Bildbreite stehen, bei 75 % ist ein Drittel des Schirms leer. Steht in der
+     leeren Flaeche das Bild selbst, ist beides gleichzeitig da.
+     Liegt ueber dem dunklen Grund (.stage::before) und unter dem Band. */
+  .fill {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  /* Traegt die Geometrie des Videos — Poster und Canvas liegen deckungsgleich
+     darin. Ohne diesen Kasten stuenden dieselben Masse an zwei Stellen. */
+  .band {
+    position: relative;
+    z-index: 2;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* Handy hochkant: das Band bekommt ein festes Format statt der vollen Hoehe.
+     Darum geht es — das Material ist quer, `cover` schneidet hochkant seitlich
+     ab, und zwar umso weniger, je flacher das Band ist.
+
+     Die Rechnung: soll der Anteil p der Bildbreite stehen bleiben, muss das
+     Band so flach sein, dass Breite/Hoehe = p * (1200/676) ist — das
+     Quellformat. In Prozent geschrieben ist 1200/100 die 12 unten. Damit
+     stimmt der Anteil auf jeder Geraetebreite, ohne Tabelle:
+       --sicht:  20 -> deckelt auf Buehnenhoehe (= formatfuellend, ~28 %)
+       --sicht:  50 -> Band 0,888:1 (hochkant)   600 px von 1200
+       --sicht:  60 -> 1,065:1                   720 px
+       --sicht:  75 -> 1,331:1  (= 4:3)          900 px   <- Vorgabe
+       --sicht: 100 -> 1,775:1  (= das ganze Bild, kein Zuschnitt)
+     Zum Vergleichen am Geraet: ?sicht=55 an die Adresse haengen.
+
+     Nur im Hochformat: quer (844x390) waere so ein Band hoeher als das
+     Fenster, dort bleibt es formatfuellend. */
+  @media (max-width: 700px) and (orientation: portrait) {
+    /* Die Umschaltung des Hinweises steht weiter unten bei der Leiste — dort
+       ist .hint-turn schon definiert, und CSS entscheidet bei gleicher
+       Spezifitaet nach Reihenfolge. Hier stand sie zuerst und wurde von
+       `.hint-turn { display: none }` wieder ueberschrieben. */
+    .band {
+      height: auto;
+      aspect-ratio: calc(var(--sicht) * 12 / 676);
+      /* --stage-h, nicht 100%: die Buehne ist ein Grid, und ein Grid-Item
+         bezieht Prozenthoehen auf seine ZEILE — die waechst mit dem Inhalt.
+         Mit 100% war der Deckel wirkungslos, und unter ~28 % wuchs das Band
+         aus der Buehne heraus (gemessen: 1104 px bei 780 px Buehne).
+         So saettigt es sauber bei formatfuellend. */
+      max-height: var(--stage-h);
+    }
   }
 
   /* Ein einziges Sternenfeld hinter der ganzen Seite, fest im Fenster.
@@ -135,36 +246,65 @@
     opacity: 0;
     pointer-events: none;
   }
-  /* Liegt vor dem Sternenfeld und hinter dem Schriftzug. Die Deckkraft setzt
-     die Schleife: das Video blendet ab, statt zur Karte zu werden. */
+  /* Deckungsgleich im Band. Die Deckkraft des Canvas setzt die Schleife: das
+     Video blendet ab, statt zur Karte zu werden. */
   .seq {
-    position: relative;
-    z-index: 2;
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
     display: block;
-    width: 100%;
-    height: 100%;
   }
 
   /* Standbild, solange die Sequenz lädt — nie eine leere Seite */
   .poster {
     position: absolute; inset: 0;
     width: 100%; height: 100%;
-    /* contain, nicht cover: das Canvas schneidet hochkant ebenfalls nicht mehr
-       voll zu, ein cover-Poster würde beim Wechsel sichtbar springen. */
-    object-fit: contain;
+    /* cover wie das Canvas: beide fuellen das Format, der Wechsel springt nicht. */
+    object-fit: cover;
     transition: opacity .4s ease;
   }
   .ready .poster { opacity: 0; }
 
+  /* Von oben gemessen, nicht von unten: die Buehne reicht bis 100lvh, ihre
+     Unterkante liegt auf dem Handy also hinter der Adressleiste. Ihre
+     Oberkante ist die Unterkante der Leiste — 94svh minus Leistenhoehe
+     darunter steht der Hinweis in beiden Zustaenden im Bild. */
   .hint {
     position: absolute;
-    left: 50%; bottom: 3svh;
-    transform: translateX(-50%);
+    /* Ueber Fuellflaeche (1) und Band (2) — sonst liegt der Hinweis darunter
+       und ist unsichtbar, sobald eines von beiden die Stelle bedeckt. */
+    z-index: 3;
+    /* Reiner Text, nie bedienbar. Ohne das faengt er Klicks weiter, auch wenn
+       tick() ihn beim Scrollen auf opacity 0 gesetzt hat — und mit z-index 3
+       laege er dabei ueber dem Shop (z-index 2). */
+    pointer-events: none;
+    left: 50%; top: calc(94svh - var(--header-h));
+    transform: translate(-50%, -100%);
     font-size: .75rem;
     letter-spacing: .18em;
     text-transform: uppercase;
     color: var(--text-muted);
     transition: opacity .3s;
+    white-space: nowrap;
+  }
+  /* Umgeschaltet wird nur auf dem Handy hochkant — sonst steht „scrollen". */
+  .hint-turn { display: none; }
+
+  /* Handy-Umriss, der einmal zur Seite kippt und zurueck. Erklaert den Satz
+     schneller als der Satz selbst. Zwei Divs waeren es auch geworden; ein
+     Rechteck mit Rahmen tut es. */
+  .turnicon {
+    display: inline-block;
+    width: 13px; height: 21px;
+    margin-right: 9px;
+    vertical-align: -5px;
+    border: 1.5px solid currentColor;
+    border-radius: 3px;
+    animation: kippen 3s ease-in-out infinite;
+  }
+  @keyframes kippen {
+    0%, 22%   { transform: rotate(0deg); }
+    42%, 78%  { transform: rotate(-90deg); }
+    100%      { transform: rotate(0deg); }
   }
 
   /* ---------- Menüleiste ---------- */
@@ -251,21 +391,88 @@
   .navbar a { color: inherit; text-decoration: none; }
   .navbar a:not(.wordmark):hover { opacity: .6; }
 
-  /* Handy: drei Spalten passen nicht auf 320 px. Die Rubriken fallen weg, die
-     Links stehen in einer Zeile — mehr traegt die Breite nicht, und ein
-     Aufklappmenue waere neue Mechanik fuer drei Handvoll Links. */
-  /* Auch nach Hoehe, nicht nur nach Breite: bei 844x390 im Querformat greift
-     eine reine Breitenabfrage nicht, und die dreispaltige Leiste frisst dort
-     118 von 390 px - fast ein Drittel des Bildschirms. */
+  /* Am Desktop stehen alle Spalten offen — kein Knopf noetig. */
+  .navtoggle { display: none; }
+
+  /* Kleines Geraet, egal wie gehalten: die zehn Links passen nicht offen in die
+     Leiste. Vorher brachen sie auf 320 px in vier Zeilen um — 108 von 568 px
+     Bildschirm, als Textwand quer ueber dem Video. Der Knopf macht daraus eine
+     Zeile.
+     Auch nach Hoehe, nicht nur nach Breite: bei 844x390 im Querformat greift
+     eine reine Breitenabfrage nicht. */
   @media (max-width: 700px), (max-height: 500px) {
-    .navbar { padding-top: 18px; gap: 12px; }
-    .navlabel { display: none; }
-    .navcol  { flex-direction: row; gap: 14px; }
-    /* Enger als vorher, weil hier jetzt zehn statt acht Links umbrechen.
-       Gemessen auf 375 px: 15 px/14 px Abstand ergaben 5 Zeilen und 134 px
-       Leiste, 12 px/10 px ergeben 3 Zeilen und 71 px. */
-    .navcols { gap: 3px 10px; flex-wrap: wrap; justify-content: flex-end; }
-    .navbar a:not(.wordmark) { font-size: clamp(12px, 3vw, 14px); line-height: 1.3; }
+    /* Offenes Menue: immer hell auf deckendem Grund. Ohne das faerbt --nav-turn
+       im Shop die Schrift dunkel — auf dem schwarzen Panel unlesbar. */
+    .navbar[data-open] {
+      background: var(--ground);
+      color: var(--nav-ink-light);
+    }
+
+    .navtoggle {
+      display: block;
+      pointer-events: auto;
+      background: none; border: 0; padding: 0;
+      color: inherit; cursor: pointer;
+      font-family: var(--font-nav);
+      font-size: clamp(14px, 3.6vw, 17px);
+      letter-spacing: -.01em;
+    }
+
+    /* Absolut unter der Leiste, nicht in ihr: sonst waechst navbar.offsetHeight
+       beim Aufklappen, und daran haengt --nav-h und damit der Abstand im Shop.
+       Scrollbar, weil fuenf Rubriken im Querformat hoeher sind als das Fenster. */
+    .navcols {
+      position: absolute;
+      top: 100%; left: 0; right: 0;
+      display: none;
+      grid-template-columns: 1fr 1fr;
+      gap: clamp(14px, 4vw, 22px);
+      padding: clamp(16px, 5vw, 24px) clamp(16px, 4vw, 34px) clamp(22px, 6vw, 30px);
+      background: var(--ground);
+      /* Gegen die GEMESSENE Leistenhoehe, nicht gegen --header-h: quer gibt es
+         keinen festen Balken, die Leiste ist dort nur so hoch wie ihr Inhalt. */
+      max-height: calc(100lvh - var(--nav-h));
+      overflow-y: auto;
+      overscroll-behavior: contain;
+    }
+    .navbar[data-open] .navcols { display: grid; }
+    /* Im Panel ist Platz fuer die Rubriken — in der Leiste war keiner. */
+    .navlabel { display: block; }
+    .navbar a:not(.wordmark) { font-size: clamp(14px, 3.8vw, 17px); line-height: 1.6; }
+  }
+
+  /* Der deckende Balken gilt NUR hochkant. Er existiert, um die Bildhoehe zu
+     verkuerzen und damit den seitlichen Zuschnitt zu verkleinern — und um zu
+     kaschieren, dass dort nichts ist. Quer fehlt nichts: das Material liegt
+     formatfuellend und vollstaendig vor. Ein Balken kostete dort nur Bild
+     (gemessen auf 844x390: 69 % statt 82 % der Bildhoehe sichtbar).
+     Quer bleibt die Leiste deshalb nackt ueber dem Bild stehen, mit dem
+     abgedunkelten Verlauf und dem Hell/Dunkel-Umschlag wie am Desktop. */
+  @media (max-width: 700px) and (orientation: portrait) {
+    :root { --header-h: 64px; }
+
+    .navbar {
+      height: var(--header-h);
+      align-items: center;
+      padding: 0 clamp(16px, 4vw, 34px);
+      background: var(--ground);
+      /* Fest hell: der Umschlag von hell auf dunkel (--nav-turn) galt fuer die
+         nackte Leiste ueber wechselndem Untergrund. Hier ist der Untergrund
+         immer dieselbe schwarze Flaeche. */
+      color: var(--nav-ink-light);
+      pointer-events: auto;
+    }
+    /* Der abgedunkelte Verlauf war Ersatz fuer einen Balken. Hochkant gibt es
+       jetzt einen Balken. */
+    .navbar::before { display: none; }
+
+    /* Quer liegt das Material formatfuellend und vollstaendig vor: 100 % der
+       Breite statt 28 %, und 82 % der Hoehe. Das ist die eine Geste, die mehr
+       bringt als jede Zuschnitt-Einstellung — also einladen statt verschweigen.
+       Einladung, keine Bedingung: mit aktiver Drehsperre kann ihr niemand
+       folgen, und hochkant traegt die Seite seit dem Links-Versatz. */
+    .hint-scroll { display: none; }
+    .hint-turn   { display: inline-block; }
   }
 
   /* ---------- Shop ---------- */
@@ -428,6 +635,9 @@
     white-space: pre;
   }
   .hud.off { display: none; }
+  /* Umgeschaltet wird sie mit der Taste h — die es auf dem Handy nicht gibt.
+     Dort stand die Entwickleranzeige also dauerhaft im Bild. */
+  @media (pointer: coarse) { .hud { display: none; } }
 
   @media (prefers-reduced-motion: reduce) {
     .hint { display: none; }
@@ -457,9 +667,13 @@
 
 <header class="navbar" id="navbar">
   <a class="wordmark" href="#top">Rutger</a>
+  <!-- Nur auf dem Handy sichtbar (CSS). Text statt Burger-Icon: die Leiste ist
+       ohnehin typografisch, und ein <button> mit Wort braucht kein aria-label. -->
+  <button class="navtoggle" id="navtoggle" type="button"
+          aria-expanded="false" aria-controls="navcols">menü</button>
   <!-- ponytail: alle Ziele ausser dem Shop sind Platzhalter und zeigen auf
        sich selbst. Sobald die Seitenstruktur steht, bekommen sie echte Ziele. -->
-  <nav class="navcols">
+  <nav class="navcols" id="navcols">
     <div class="navcol">
       <span class="navlabel">shop</span>
       <a href="#shop">alle artikel</a>
@@ -490,9 +704,20 @@
 
 <section class="intro" id="intro">
   <div class="stage" id="stage">
-    <img class="poster" id="poster" src="frames/001.jpg" alt="">
-    <canvas class="seq" id="seq"></canvas>
-    <div class="hint" id="hint">scrollen</div>
+    <!-- Fuellt die Buehne mit demselben Bild, nur stark unscharf und
+         abgedunkelt — damit neben dem Band keine tote Flaeche steht. -->
+    <canvas class="fill" id="fill" aria-hidden="true"></canvas>
+    <div class="band" id="band">
+      <img class="poster" id="poster" src="frames/001.jpg" alt="">
+      <canvas class="seq" id="seq"></canvas>
+    </div>
+    <div class="hint" id="hint">
+      <span class="hint-scroll">scrollen</span>
+      <!-- Nur auf dem Handy hochkant (CSS). Einladung, keine Bedingung: quer
+           liegt das ganze Bild vor, hochkant funktioniert die Seite aber
+           genauso — wer die Drehsperre an hat, kann dem Hinweis nicht folgen. -->
+      <span class="hint-turn"><i class="turnicon" aria-hidden="true"></i>quer drehen fürs ganze Bild</span>
+    </div>
   </div>
 </section>
 
@@ -539,6 +764,16 @@
   const FRAME_COUNT = 176;
   const FRAME_PATH  = i => `frames/${String(i).padStart(3, '0')}.jpg`;
 
+  // Auf schmalen Geraeten nur jedes zweite Bild laden. Der Satz wiegt 9 MB —
+  // das ist mit Abstand der laengste Teil der Ladezeit, und auf Mobilfunk
+  // bezahlt der Besucher ihn auch. Die halbe Sequenz laeuft mit 88 statt 176
+  // Bildern ueber denselben Scrollweg; das faellt nicht auf, weil die Sequenz
+  // ohnehin gedaempft laeuft und das Material grobkoernig und bewegungsunscharf
+  // ist.
+  // Einmal beim Laden entschieden, nicht bei jedem resize: ein Drehen des
+  // Handys soll keine zweite Runde Downloads ausloesen.
+  const FRAME_STEP = innerWidth <= 700 ? 2 : 1;
+
   const DAMPING  = 0.085;  // kleiner = schwerer/träger
   const CAM_PUSH = 0.06;   // Hineinfahrt. Klein halten: das Material fährt schon selbst
 
@@ -558,11 +793,17 @@
   // Vorschaltbild. Am Ende schiebt sich der Shop einfach darüber.
   // Frühere Zustände hängen am Tag `stand-video-als-karte`.
 
-  // Wie viel Bildbreite mindestens stehen bleiben muss. Das Material ist quer
-  // (16:9), ein Handy hochkant ist 9:19,5 — ohne Grenze schneidet `cover` 74 %
-  // der Breite weg und zieht den Rest 3,7× auf. Statt dessen füllt --ground
-  // oben und unten auf.
-  const MIN_VIS = 0.55;
+  // Ab hier wandert der Ausschnitt nach links. Grund: der Saenger steht in der
+  // zweiten Haelfte der Sequenz links im Bild, rechts neben ihm ist dunkler
+  // Raum. Mittig zugeschnitten erwischt ein hochkantes Fenster genau diesen
+  // Raum — der Mann steht dann halb ausserhalb.
+  // Nicht als Schnitt, sondern ueber ein paar Bilder eingeblendet: bei einer
+  // scrollgesteuerten Sequenz waere ein Sprung im Ausschnitt ein Ruck.
+  // Angaben in Bildnummern des Originals, nicht in Array-Indizes — auf dem
+  // Handy liegt nur jedes zweite Bild vor.
+  const SHIFT_FROM = 115;
+  const SHIFT_TO   = 127;
+  const SHIFT_LEFT = 0.10;   // wie viel Bildbreite links stehen bleibt
 
   const SHOP_RISE  = 80;   // px, aus denen der Shop hochkommt
   const SHOP_SCALE = 0.94; // Startgröße des Shops
@@ -606,10 +847,28 @@
   const ST_RADIUS = 0.53;
   // -----------------------------------------------------------------------
 
+  // ?sicht=55 stellt die sichtbare Bildbreite um, ohne zu bauen — zum
+  // Vergleichen auf dem echten Geraet. Streng geprueft, weil der Wert in eine
+  // CSS-Eigenschaft geht; unter 30 % waere das Band hoeher als das Fenster.
+  const q = new URLSearchParams(location.search);
+  const sicht = Number(q.get('sicht'));
+  // Untergrenze 20, nicht 30: formatfuellend liegt je nach Geraet bei 26-28 %,
+  // und genau der Fall soll vergleichbar bleiben. Darunter passiert nichts
+  // Schlimmes — max-height deckelt das Band auf die Buehnenhoehe, es saettigt.
+  if (Number.isInteger(sicht) && sicht >= 20 && sicht <= 100)
+    document.documentElement.style.setProperty('--sicht', String(sicht));
+  // ?fuellung=aus laesst die Flaeche neben dem Band schwarz — zum Vergleichen.
+  const fuellungAus = q.get('fuellung') === 'aus';
+  // ?versatz=aus schneidet durchgehend mittig zu — zum Vergleichen.
+  const versatzAus  = q.get('versatz') === 'aus';
+
   const canvas = document.getElementById('seq');
   const ctx    = canvas.getContext('2d', { alpha: true });
+  const fill    = document.getElementById('fill');
+  const fillCtx = fill.getContext('2d', { alpha: true });
   const intro  = document.getElementById('intro');
   const stage  = document.getElementById('stage');
+  const band   = document.getElementById('band');
   const shop   = document.getElementById('shop');
   const shopSticky = document.getElementById('shopSticky');
   const shopInner  = document.getElementById('shopInner');
@@ -630,6 +889,23 @@
   // draw() neu auslesen — sonst driften Puffer und Anzeige auseinander, sobald
   // sich Fenstergröße oder Zoom ändern.
   let cssW = 0, cssH = 0, dprUsed = 1;
+  // Maße der Fuellflaeche (= der Buehne). 0, solange sie nichts zu tun hat.
+  let fillW = 0, fillH = 0;
+
+  // Die Unschaerfe der Fuellflaeche entsteht durch Verkleinern und wieder
+  // Aufziehen, nicht durch ctx.filter = 'blur(...)'. Ein echter Weichzeichner
+  // ueber die volle Flaeche kostet pro Frame mehr, als ein Handy beim Scrollen
+  // uebrig hat; ein 40 px breites Zwischenbild kostet nichts, und die
+  // Interpolation des Browsers macht daraus denselben weichen Verlauf.
+  const BLUR_W  = 40;
+  // Schleier darueber, damit die Fuellung das Auge nicht vom scharfen Band
+  // wegzieht. 0.45 und nicht mehr: das Material ist fast durchgehend schwarz,
+  // mit 0.62 war von der Fortsetzung nichts mehr zu sehen und der Unterschied
+  // zur schwarzen Flaeche verschwand. Hier drehen, wenn die Fuellung zu laut
+  // oder zu leise ist.
+  const BLUR_DIM = 0.45;
+  const small    = document.createElement('canvas');
+  const smallCtx = small.getContext('2d');
 
   // ---- Sterne -----------------------------------------------------------
   // Ein Feld fuer die ganze Seite. Vorher lagen zwei Instanzen davon in der
@@ -806,17 +1082,23 @@
   sheet.src = ST_SRC;
 
   // ---- Laden ------------------------------------------------------------
-  for (let i = 1; i <= FRAME_COUNT; i++) {
+  const srcIdx = [];
+  for (let i = 1; i <= FRAME_COUNT; i += FRAME_STEP) srcIdx.push(i);
+  // Das letzte Bild kommt immer mit, egal wie die Schrittweite aufgeht: darauf
+  // steht die Sequenz, waehrend sie ausblendet.
+  srcIdx[srcIdx.length - 1] = FRAME_COUNT;
+
+  for (const n of srcIdx) {
     const img = new Image();
     img.decoding = 'async';
-    img.src = FRAME_PATH(i);
+    img.src = FRAME_PATH(n);
     img.onload = () => {
       if (!iw) {
         iw = img.naturalWidth; ih = img.naturalHeight;
         resize();
         stage.classList.add('ready');   // Poster weg, sobald EIN Frame steht
       }
-      if (++loaded === FRAME_COUNT) ready = true;
+      if (++loaded === srcIdx.length) ready = true;
     };
     frames.push(img);
   }
@@ -829,11 +1111,29 @@
     // Ueberschreibt den Startwert aus :root mit der gemessenen Hoehe. Die Leiste
     // bricht auf schmalen Bildschirmen um und ist dann hoeher.
     document.documentElement.style.setProperty('--nav-h', navbar.offsetHeight + 'px');
-    const r = stage.getBoundingClientRect();
+    // Das BAND, nicht die Buehne: auf dem Handy ist das Band flacher als die
+    // Buehne, und der Zuschnitt in draw() rechnet mit der Flaeche, die das Bild
+    // wirklich bekommt.
+    const r = band.getBoundingClientRect();
     cssW = r.width; cssH = r.height;
     canvas.width  = Math.round(cssW * dprUsed);
     canvas.height = Math.round(cssH * dprUsed);
     ctx.setTransform(dprUsed, 0, 0, dprUsed, 0, 0);
+
+    // Fuellflaeche nur, wo das Band die Buehne NICHT ausfuellt — am Desktop und
+    // im Querformat waere sie unsichtbar und trotzdem bezahlt.
+    // Ein eigenes dpr braucht sie nicht: sie ist per Bauart unscharf. Mit 1
+    // statt 2 oder 3 kostet das Aufziehen ein Neuntel.
+    const st = stage.getBoundingClientRect();
+    const braucht = !fuellungAus && (st.height - cssH > 1 || st.width - cssW > 1);
+    fillW = braucht ? st.width  : 0;
+    fillH = braucht ? st.height : 0;
+    fill.style.display = braucht ? 'block' : 'none';
+    if (braucht) {
+      fill.width  = Math.round(fillW);
+      fill.height = Math.round(fillH);
+      fillCtx.setTransform(1, 0, 0, 1, 0, 0);
+    }
 
     // Laufstrecke der Galerie: erst die Ueberbreite messen, dann den Shop genau
     // so viel hoeher machen. Die Hoehe vorher zuruecksetzen, sonst misst die
@@ -886,31 +1186,65 @@
     // Die Frames sind bei FADE_START fertig durchgespielt; danach hält der
     // letzte Frame, während tick() das Canvas darüber ausblendet.
     const seqT = Math.min(t, FADE_START) / FADE_START;
-    const idx = Math.min(FRAME_COUNT - 1, Math.max(0, Math.round(seqT * (FRAME_COUNT - 1))));
+    // Ueber frames.length, nicht FRAME_COUNT: auf dem Handy liegt nur jedes
+    // zweite Bild vor, die Sequenz laeuft trotzdem ueber den ganzen Scrollweg.
+    const last = frames.length - 1;
+    const idx = Math.min(last, Math.max(0, Math.round(seqT * last)));
     const img = frames[idx];
     if (!img.complete || !img.naturalWidth) return;
 
-    // Volle Breite, Höhe nur so weit, dass MIN_VIS der Bildbreite stehen bleibt.
-    const asp = iw / ih;
-    const bw = cssW;
-    const bh = Math.min(cssH, cssW / (MIN_VIS * asp));
-    const bx = 0, by = (cssH - bh) / 2;
-
-    const sc = Math.max(bw / iw, bh / ih) * (1 + CAM_PUSH * seqT);
+    // Formatfuellend, in jedem Seitenverhaeltnis: der Ausschnitt ist das ganze
+    // Fenster. Vorher stand hier eine Untergrenze fuer die sichtbare Bildbreite
+    // (MIN_VIS), die hochkant einen Balken oben und unten stehen liess — das
+    // Handy zeigte einen 390x400-Streifen Video mitten auf dem Bildschirm.
+    //
+    // Der Preis ist der Zuschnitt: auf 390x844 bleiben von 1200 px Material
+    // rund 310 px Breite, der Rest liegt links und rechts ausserhalb. Das
+    // traegt nur, weil der Mann in jeder Einstellung mittig steht — die
+    // Torpfosten im ersten Frame und die Menge am Rand fallen dabei weg.
+    // ponytail: der Ausschnitt zieht 310 px Material auf 390 CSS-px auf. Wenn
+    // das zu weich wird, ist der Ausweg ein hochkant exportierter Satz Frames
+    // aus dem Original, nicht mehr Code hier.
+    const sc = Math.max(cssW / iw, cssH / ih) * (1 + CAM_PUSH * seqT);
     const w = iw * sc, h = ih * sc;
 
+    // Waagerechte Lage des Ausschnitts. Normal mittig; ab SHIFT_FROM so weit
+    // nach links, dass links noch SHIFT_LEFT der Bildbreite stehen bleibt.
+    // Geklemmt auf [cssW - w, 0]: der Ausschnitt darf nie ueber den Bildrand
+    // hinaus, sonst klafft eine Luecke. Wo gar nicht seitlich beschnitten wird
+    // (Desktop, Querformat), faellt der Klemmbereich auf einen Punkt zusammen
+    // und der Versatz hat von selbst keine Wirkung.
+    const nr = srcIdx[idx];
+    const k  = versatzAus ? 0
+             : clamp01((nr - SHIFT_FROM) / (SHIFT_TO - SHIFT_FROM));
+    const dxMid = (cssW - w) / 2;
+    const dx = Math.min(0, Math.max(cssW - w,
+                 dxMid + (-SHIFT_LEFT * w - dxMid) * k));
+
     ctx.clearRect(0, 0, cssW, cssH);
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(bx, by, bw, bh);
-    ctx.clip();
-    ctx.drawImage(img, bx + (bw - w) / 2, by + (bh - h) / 2, w, h);
-    ctx.restore();
+    ctx.drawImage(img, dx, (cssH - h) / 2, w, h);
+
+    // Fuellflaeche: dasselbe Bild, ueber die ganze Buehne, unscharf und
+    // abgedunkelt. Erst auf BLUR_W verkleinern, dann formatfuellend aufziehen —
+    // die Interpolation macht die Unschaerfe.
+    if (fillW) {
+      small.width  = BLUR_W;
+      small.height = Math.max(1, Math.round(BLUR_W * ih / iw));
+      smallCtx.drawImage(img, 0, 0, small.width, small.height);
+
+      const fs = Math.max(fillW / small.width, fillH / small.height);
+      const fw = small.width * fs, fh = small.height * fs;
+      fillCtx.clearRect(0, 0, fillW, fillH);
+      fillCtx.drawImage(small, (fillW - fw) / 2, (fillH - fh) / 2, fw, fh);
+      fillCtx.fillStyle = `rgba(14, 7, 18, ${BLUR_DIM})`;
+      fillCtx.fillRect(0, 0, fillW, fillH);
+    }
 
     hud.textContent =
-      'Frame ' + (idx + 1) + ' / ' + FRAME_COUNT + '\n' +
+      'Frame ' + (idx + 1) + ' / ' + frames.length +
+        (FRAME_STEP > 1 ? ' (jedes ' + FRAME_STEP + '.)' : '') + '\n' +
       'Sequenz ' + (t * 100).toFixed(1) + ' %\n' +
-      (ready ? 'geladen' : 'lädt ' + loaded + '/' + FRAME_COUNT) + '\n' +
+      (ready ? 'geladen' : 'lädt ' + loaded + '/' + frames.length) + '\n' +
       skyField.info + '\n' +
       'h = Anzeige';
   }
@@ -951,6 +1285,11 @@
     const shopFade = clamp01((innerHeight * 1.5 - r.top) / (innerHeight * 0.5));
     const fadeT = Math.max(clamp01((eased - FADE_START) / (1 - FADE_START)), shopFade);
     canvas.style.opacity = String(1 - fadeT);
+    fill.style.opacity   = String(1 - fadeT);   // Fuellflaeche geht mit
+    // Der dunkle Grund hinter dem Band haengt an derselben Zahl (siehe
+    // .stage::before), sonst bliebe auf dem Handy eine schwarze Flaeche stehen,
+    // waehrend das Bild darin schon weg ist.
+    document.documentElement.style.setProperty('--fade', fadeT.toFixed(3));
 
     // Umschlag der Leiste, aus demselben fadeT gerechnet. Als Variable auf
     // <html>, damit Scrim und Schriftfarbe an derselben Zahl haengen. Keine
@@ -992,14 +1331,35 @@
   addEventListener('scroll', readScroll, { passive: true });   // kein preventDefault
   // ResizeObserver statt nur window.resize: fängt auch Layout- und Zoomänderungen,
   // die kein resize-Event auslösen.
-  new ResizeObserver(() => { resize(); readScroll(); }).observe(stage);
+  // Auf dem Band, nicht auf der Buehne: aendert sich das Fenster, aendert sich
+  // beides — aendert sich nur --sicht, nur dieses.
+  new ResizeObserver(() => { resize(); readScroll(); }).observe(band);
   addEventListener('keydown', e => { if (e.key === 'h') hud.classList.toggle('off'); });
+
+  // ---- Ausklappmenue ----------------------------------------------------
+  // Sichtbar ist der Knopf nur auf dem Handy (CSS). Der Zustand steht als
+  // data-open am Header, damit CSS ihn sieht, und zusaetzlich in aria-expanded
+  // fuer den Screenreader — eine Wahrheit, zwei Leser.
+  const navToggle = document.getElementById('navtoggle');
+  const setMenu = open => {
+    navbar.toggleAttribute('data-open', open);
+    navToggle.setAttribute('aria-expanded', String(open));
+    navToggle.textContent = open ? 'schließen' : 'menü';
+  };
+  navToggle.addEventListener('click', () =>
+    setMenu(!navbar.hasAttribute('data-open')));
+  // Ein Link fuehrt weg — das Panel darf nicht offen stehen bleiben.
+  navbar.querySelectorAll('.navcols a').forEach(a =>
+    a.addEventListener('click', () => setMenu(false)));
+  addEventListener('keydown', e => { if (e.key === 'Escape') setMenu(false); });
 
   readScroll();
   resize();
 
   if (reduce) {
-    intro.style.height = '100svh';
+    // lvh wie die Buehne (--stage-h): mit svh waere der Abschnitt niedriger als
+    // das Sticky darin, und die Buehne ragte auf dem Handy in den Shop hinein.
+    intro.style.height = '100lvh';
     // eased mitsetzen, nicht nur einmal zeichnen: das erste draw() läuft, bevor
     // ein Frame geladen ist, und der resize() danach zeichnet sonst wieder mit
     // eased = 0.
@@ -1007,6 +1367,10 @@
     draw(1);                              // letztes Bild, keine Bewegung
     // Ohne Scroll-Animation direkt den Endzustand zeigen: Video weg, Sterne da.
     canvas.style.opacity = '0';
+    fill.style.opacity = '0';
+    // Mit dem Video geht auch der dunkle Grund hinter dem Band — sonst bliebe
+    // eine schwarze Flaeche ueber dem Verlauf stehen.
+    document.documentElement.style.setProperty('--fade', '1');
     document.documentElement.style.setProperty('--nav-turn', '1');
     sky.style.opacity = '1';
     skyField.draw(0);                     // Sterne stehen still, keine Bahn, kein Drehen
