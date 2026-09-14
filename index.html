@@ -371,7 +371,7 @@
     white-space: nowrap;
   }
 
-  /* Fuenf Spalten statt drei: der Abstand muss enger werden, sonst schiebt sich
+  /* Sechs Spalten statt drei: der Abstand muss enger werden, sonst schiebt sich
      die Leiste unter 1024 px in die Wortmarke. */
   .navcols { display: flex; gap: clamp(14px, 2vw, 40px); }
   .navcol  { display: flex; flex-direction: column; }
@@ -683,6 +683,371 @@
   .songs-actions button, .songs-actions a { font: inherit; font-size: clamp(.7rem, .85vw, .85rem); color: inherit; border: 0; border-bottom: 1px solid currentColor; background: none; padding: .5rem 0; text-decoration: none; cursor: pointer; }
   .songs button:focus-visible, .songs a:focus-visible, .songs .scene:focus-visible { outline: 2px solid currentColor; outline-offset: 4px; }
   .songs-status { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .songs + .events { scroll-margin-top: calc(var(--nav-h) + 1rem); }
+  .events h2,
+  .games h2 {
+    margin: 0;
+    font-size: clamp(1.5rem, 4.4vw, 3.5rem);
+    letter-spacing: -.03em;
+    text-transform: uppercase;
+    line-height: .95;
+  }
+
+  /* ---------- Events ---------- */
+
+  /* Waagerechte Zeitleiste, nachgebaut nach tlb.betteroff.studio (Nuxt, Bundle
+     _nuxt/NYCGuiUc.js entminifiziert und am laufenden Objekt nachgemessen).
+     Die Zahlen dort, die hier wieder auftauchen:
+       Kachelbreite fest (min-w == max-w), Hoehe folgt dem Bild, alle mittig
+       auf einer Linie (flex items-center) — gemessen 359.68 px breit bei
+       Hoehen 453/480/304/453/304/639 und Mittelpunkt konstant 403.
+       perspective: 1000px je Kachel, Abstand 25.6 px.
+       Lineal: Strich alle 11 px, 9 Striche je Foto, Gruppenanfang 22 statt
+       12 px hoch, Abspielkopf in der Mitte 50 px, alpha .25 -> 1.
+     Die Bewegung steht in evTick(). */
+  .events {
+    /* Hoehe des Strichlineals. Haengt an EV_H_HEAD im Skript (50 px) plus
+       Fusslinie — wer das eine aendert, aendert das andere mit. */
+    --ev-ruler-h: 54px;
+    position: relative;
+    z-index: 2;
+    min-height: 100svh;
+    background: transparent;
+    display: flex;
+    flex-direction: column;
+    padding: calc(var(--nav-h) + clamp(.5rem, 3svh, 2.5rem)) 0
+             clamp(1rem, 3svh, 2rem);
+  }
+  /* Nur der Kopf haelt Seitenabstand — die Reihe laeuft von Rand zu Rand,
+     sonst waere an den Seiten ein Streifen, in dem keine Fotos stehen. */
+  .events-head { padding: 0 clamp(1.25rem, 5vw, 5rem); flex: 0 0 auto; }
+  .events-note,
+  .games-note {
+    margin: clamp(.5rem, 1.5svh, 1rem) 0 0;
+    font-family: var(--font-nav);
+    font-size: clamp(9px, .7vw, 12px);
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: #6B5A79;
+  }
+
+  /* Breite EINER Kachel. Fest je Geraet wie in der Vorlage, nicht je Bild —
+     die Vorlage setzt min-width und max-width auf denselben Wert. In der
+     Sprache dieser Seite geschrieben (vgl. --card-w im Shop).
+     --ev-h-max deckelt die Hoehe: auf hohen Fenstern regiert das
+     Seitenverhaeltnis und die Hoehen sind ungleich (das ist der Look), auf
+     flachen Fenstern laufen alle gegen denselben Deckel. Ohne das ragte ein
+     Hochformat im Handy-Querformat aus dem Abschnitt. */
+  .ev-reel {
+    --ev-w:     min(clamp(200px, 22vw, 360px), 74vw);
+    --ev-gap:   clamp(12px, 1.4vw, 26px);
+    /* Startwert, bis evResize() die WIRKLICHE Reihenhoehe gemessen hat. Eine
+       svh-Schaetzung reicht nicht: was der Reihe bleibt, haengt an Leiste,
+       Kopf und Lineal, und im Handy-Querformat ragte die hoechste Kachel
+       damit aus dem Abschnitt. */
+    --ev-h-max: min(56svh, 520px);
+    position: relative;
+    /* Basis 0, nicht auto: mit auto zieht die Reihe ihre Inhaltshoehe als
+       Ausgangsgroesse heran, und weil evResize() --ev-h-max wiederum AUS
+       dieser Hoehe setzt, haelt sie sich selbst auf. Im Handy-Querformat
+       sprengte der Abschnitt damit das Fenster um 41 px (gemessen auf
+       844x390). Mit Basis 0 bekommt sie schlicht, was Kopf und Lineal
+       uebriglassen. */
+    flex: 1 1 0;
+    min-height: 0;
+    overflow: hidden;
+    cursor: grab;
+    /* Der Browser behaelt die Senkrechte, wir bekommen die Waagerechte. Das
+       ist die deklarative Fassung der Achsensperre, die die Vorlage von Hand
+       baut (preventDefault nur wenn |dx| > |dy|) — und sie greift schon vor
+       dem ersten pointermove, statt erst danach.
+       pinch-zoom bleibt ausdruecklich drin: Wegnehmen waere eine
+       Bedienbarkeitsbremse, kein Effekt. */
+    touch-action: pan-y pinch-zoom;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .ev-reel.is-drag { cursor: grabbing; }
+
+  .ev-row {
+    position: relative;
+    height: 100%;
+    display: flex;
+    align-items: center;   /* die eine gemeinsame Linie */
+    padding-left: clamp(1.25rem, 5vw, 5rem);
+  }
+
+  .ev {
+    position: relative;
+    flex: 0 0 auto;
+    width: var(--ev-w);
+    margin-right: var(--ev-gap);
+    /* Die Kippachse gehoert AUF die Kachel, nicht auf die Reihe: sonst haetten
+       alle Kacheln einen gemeinsamen Fluchtpunkt und die Reihe klappte als
+       Ganzes weg, statt dass jedes Bild um seine eigene Mitte bankt.
+       (Derselbe Grund wie bei .planes-stage, dort umgekehrt begruendet.) */
+    perspective: 1000px;
+    will-change: transform;
+  }
+  .ev-card { position: relative; will-change: transform; }
+
+  .ev-shot {
+    position: relative;
+    width: 100%;
+    height: min(calc(var(--ev-w) / var(--ar)), var(--ev-h-max));
+    overflow: hidden;
+    /* Dunkler Grund, solange das Bild noch laedt (loading="lazy") — sonst
+       klafft dort ein heller Ausschnitt des Verlaufs dahinter. */
+    background: #150A1C;
+    box-shadow: 0 25px 50px -12px rgb(0 0 0 / .45);
+  }
+  .ev-shot img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    /* Das Seitenverhaeltnis des Kastens kommt aus --ar und stimmt mit dem
+       Bild ueberein; cover faengt trotzdem ab, was gerundete Werte danebengehen
+       lassen. */
+    object-fit: cover;
+    -webkit-user-drag: none;
+  }
+  /* Nur die Platzhalterkacheln. Ein Attributselektor statt eines nackten
+     ::after: ohne data-ph ergaebe attr() einen leeren Kasten auf jedem
+     echten Foto. */
+  .ev-shot[data-ph] {
+    background:
+      linear-gradient(150deg,
+        color-mix(in srgb, var(--ev-hue) 55%, #150A1C),
+        color-mix(in srgb, var(--ev-hue) 12%, #150A1C));
+  }
+  .ev-shot[data-ph]::after {
+    content: attr(data-ph);
+    position: absolute;
+    left: 10px; bottom: 8px;
+    font-family: var(--font-nav);
+    font-size: clamp(8px, .65vw, 10px);
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: #FFFFFF55;
+  }
+
+  /* Laufende Nummer oben, Beschriftung unten. In der Vorlage stecken beide in
+     einer Maske und fahren erst auf Hover herein (700 ms, ease-out-expo) —
+     hier genauso, aber nur wo es einen Zeiger gibt. Auf Touch gibt es kein
+     Hover, dort stehen sie fest da; unsichtbare Beschriftungen waeren am
+     Handy schlicht weg. */
+  .ev-i, .ev-cap {
+    position: absolute;
+    left: 0;
+    max-width: 100%;
+    overflow: hidden;
+    font-family: var(--font-nav);
+    font-size: clamp(9px, .7vw, 12px);
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: #3B2B49;
+    white-space: nowrap;
+  }
+  .ev-i   { bottom: 100%; margin-bottom: 10px; }
+  .ev-cap { top: 100%;    margin-top: 10px; text-overflow: ellipsis; }
+  .ev-i > span, .ev-cap > span {
+    display: block;
+    transition: transform .7s cubic-bezier(.16, 1, .3, 1);
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .ev-i   > span { transform: translateY(100%); }
+    .ev-cap > span { transform: translateY(-100%); }
+    .ev:hover .ev-i > span,
+    .ev:hover .ev-cap > span { transform: translateY(0); }
+  }
+
+  /* Das Lineal. Der Canvas zeichnet die Striche, die Beschriftungen liegen als
+     echte Textknoten darunter — Text im Canvas waere weder markierbar noch
+     fuer einen Screenreader da. */
+  /* Die Strichhoehe ist der Massstab, nicht umgekehrt: der Abspielkopf misst
+     50 px, also braucht der Canvas mindestens so viel plus Fusslinie. Vorher
+     stand hier ein Prozentwert, und der Kopf wurde oben abgeschnitten
+     (gemessen: 46 statt 50 px). Feste px sind hier richtig — das ist eine
+     Strichzeichnung, kein Textkasten. */
+  .ev-line {
+    position: relative;
+    flex: 0 0 auto;
+    height: calc(var(--ev-ruler-h) + clamp(26px, 4svh, 34px));
+    margin-top: clamp(.5rem, 2svh, 1.5rem);
+    overflow: hidden;
+  }
+  .ev-line canvas {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: var(--ev-ruler-h);
+    display: block;
+  }
+  /* Zwei gleiche Spuren nebeneinander, verschoben um offset % Spurbreite:
+     so laeuft die Beschriftung endlos mit, ohne dass eine Luecke entsteht. */
+  .ev-labels { position: absolute; left: 0; right: 0; top: var(--ev-ruler-h); bottom: 0; }
+  .ev-ltrack { position: absolute; inset: 0; will-change: transform; }
+  .ev-lab {
+    position: absolute;
+    top: 0;
+    transform: translateX(-50%);
+    font-family: var(--font-nav);
+    font-size: clamp(9px, .7vw, 11px);
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: #3B2B49;
+    white-space: nowrap;
+    line-height: 1.35;
+  }
+  .ev-lab b { display: block; font-weight: 400; }
+  .ev-lab i { display: block; font-style: normal; color: #6B5A79; }
+
+  /* Ohne Bewegung laeuft tick() nicht, also gibt es weder Daempfung noch
+     Kippen noch Lineal. Dann ist es eine Reihe, die man von Hand wischt —
+     nativ, ohne eine Zeile JS. Die Beschriftungen stehen fest da, weil ohne
+     Hover-Animation nichts hereinfahren kann. */
+  @media (prefers-reduced-motion: reduce) {
+    .ev-reel { overflow-x: auto; touch-action: auto; cursor: default; }
+    .ev-row  { padding-right: clamp(1.25rem, 5vw, 5rem); }
+    .ev-line { display: none; }
+    .ev-i > span, .ev-cap > span { transform: none !important; }
+  }
+
+  /* ---------- Games ---------- */
+
+  /* Platzhalter, wie die Events-Sektion vor ihrem Inhalt: haelt Platz und
+     Scrollweg zwischen Events und Footer frei. Nur das, was jeder Abschnitt
+     dieser Seite braucht — durchsichtiger Grund (dahinter liegt fest #bgfx),
+     z-index 2 wie Shop, Musik und Events, oben die Leistenhoehe, sonst laeuft
+     die Ueberschrift unter die feste Menueleiste.
+     min-height statt height: sobald das Minigame drinsteht, waechst der
+     Abschnitt mit, ohne dass hier etwas zu aendern waere. */
+  .games {
+    position: relative;
+    z-index: 2;
+    min-height: 100svh;
+    background: transparent;
+    padding: calc(var(--nav-h) + clamp(.5rem, 3svh, 2.5rem))
+             clamp(1.25rem, 5vw, 5rem)
+             clamp(1.5rem, 5svh, 3.5rem);
+  }
+
+  /* ---------- Footer ---------- */
+
+  /* Vorlage: motion.dev/examples/react-footer-reveal. Dort gemessen: der
+     Footer klebt mit `bottom: 0` und z-index -1 UNTER der Seite, der Inhalt
+     darueber ist deckend und schiebt sich hoch — der Footer wird also
+     aufgedeckt, mit harter Kante, nicht eingeblendet. Waehrend das laeuft,
+     schaerft sich sein Inhalt: opacity 0->1, blur(6px)->0, scale(.9)->1 mit
+     Ursprung an der Unterkante, alle drei linear ueber den Aufdeckweg
+     (nachgemessen bei 45,5 %: .4555 / 3.27px / .9456).
+
+     Hier ist es umgedreht, weil es hier nichts zum Aufdecken gaebe: die
+     Abschnitte dieser Seite sind alle durchsichtig, hinter ihnen liegt fest
+     #bgfx. Ein Footer DARUNTER waere nie verdeckt. Also liegt er DARUEBER
+     (z-index 3, ueber den Abschnitten auf 2, unter der Leiste auf 100) und
+     wird von oben weggeschnitten — die Schnittkante wandert beim Scrollen
+     hoch. Das ist dieselbe wandernde harte Kante, nur von der anderen Seite
+     erzeugt. clip-path schneidet auch Klicks weg, der weggeschnittene Teil
+     faengt also nichts ab.
+
+     Startwert ganz weg, nicht wie sonst auf dieser Seite sichtbar: ein
+     ungeschnittener klebender Footer ueber z-index 3 stuende sonst auf JEDEM
+     Bildschirm der Seite im Weg — ohne Skript ist gar kein Footer das
+     kleinere Uebel. Bei reduzierter Bewegung greift der Block ganz unten. */
+  .footer {
+    position: sticky;
+    bottom: 0;
+    z-index: 3;
+    clip-path: inset(100% 0 0 0);
+    /* Der Grund ist immer deckend — aufgedeckt wird durch den Schnitt, nicht
+       durch Durchsichtigkeit. Er zieht nur mit dem Fortschritt an, wie im
+       Original der durchscheinende Blauton: von fast schwarzem Violett auf
+       den Vollton. --fr setzt tick(). Die einfache Zeile davor faengt
+       Browser ohne color-mix ab. */
+    background: var(--violet);
+    background: color-mix(in srgb, var(--violet) calc(var(--fr, 1) * 100%), #1B0429);
+    color: var(--text);
+  }
+
+  /* Traegt Deckkraft, Unschaerfe und Massstab — die drei Werte aus der
+     Vorlage. Getrennt vom Grund, sonst wuerde die Unschaerfe die Kante des
+     Schnitts mitverwaschen und aus dem harten Rand ein Verlaufen machen. */
+  .footer-scale {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: clamp(1.5rem, 5svh, 3rem);
+    /* Nicht hoeher als das Fenster: ein klebender Kasten, der laenger ist als
+       der Bildschirm, wird oben abgeschnitten und der Rest nie erreichbar.
+       Handy quer (~390 px hoch) ist der Grenzfall, deshalb der min(). */
+    min-height: min(58svh, 440px);
+    padding: clamp(1.5rem, 5svh, 3.5rem) clamp(1.25rem, 5vw, 5rem);
+    /* Ursprung an der Unterkante wie im Original: der Inhalt waechst aus der
+       Kante heraus, aus der er auch auftaucht. */
+    transform-origin: 50% 100%;
+    will-change: transform, opacity, filter;
+  }
+
+  .footer-top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: clamp(1.25rem, 4vw, 4rem);
+  }
+
+  /* Der Schriftzug traegt hier mehr Gewicht als in der Leiste — er ist das
+     Letzte, was stehen bleibt. */
+  .footer .wordmark { font-size: clamp(34px, 6vw, 88px); }
+
+  .footer-cols {
+    display: flex;
+    flex-wrap: wrap;
+    gap: clamp(1.25rem, 3vw, 3.5rem);
+    font-family: var(--font-nav);
+    font-size: clamp(11px, .85vw, 13px);
+    letter-spacing: .04em;
+  }
+  .footer-col { display: flex; flex-direction: column; gap: .45em; }
+  .footer-col .navlabel {
+    text-transform: uppercase;
+    letter-spacing: .18em;
+    /* Violett aufgehellt statt --text-muted: auf dem Vollton waere der
+       graue Ton der Intro matschig. */
+    color: color-mix(in srgb, var(--text) 55%, var(--violet));
+  }
+  .footer a {
+    color: inherit;
+    text-decoration: none;
+    /* Unterstrich als Rahmen, nicht als text-decoration: so laesst er sich
+       ueberblenden, ohne dass die Zeile springt. */
+    border-bottom: 1px solid transparent;
+    width: fit-content;
+    transition: border-color .18s ease;
+  }
+  .footer a:hover,
+  .footer a:focus-visible { border-bottom-color: currentColor; }
+
+  .footer-base {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .35em clamp(1rem, 2.5vw, 2rem);
+    align-items: baseline;
+    font-family: var(--font-nav);
+    font-size: clamp(10px, .75vw, 12px);
+    letter-spacing: .06em;
+    color: color-mix(in srgb, var(--text) 62%, var(--violet));
+    border-top: 1px solid color-mix(in srgb, var(--text) 22%, transparent);
+    padding-top: clamp(.75rem, 2svh, 1.25rem);
+  }
+
+  /* Ohne Scroll-Animation gibt es nichts aufzudecken: dann ist es ein
+     normaler Footer am Seitenende, ungeschnitten und im Fluss. tick() laeuft
+     dort nicht und koennte den Schnitt nie oeffnen. */
+  @media (prefers-reduced-motion: reduce) {
+    .footer { position: static; clip-path: none; }
+  }
 
   /* ---------- Dev-Anzeige ---------- */
   .hud {
@@ -781,6 +1146,10 @@
       <a href="#">shows</a>
     </div>
     <div class="navcol">
+      <span class="navlabel">games</span>
+      <a href="#games">htrj-minigame</a>
+    </div>
+    <div class="navcol">
       <span class="navlabel">socials</span>
       <a href="#">instagram</a>
       <a href="#">tiktok</a>
@@ -857,10 +1226,208 @@
     <div class="songs-actions">
       <button type="button" id="pause" aria-pressed="false">Pause</button>
       <button type="button" id="reset">Zurücksetzen</button>
+      <a href="#events">Weiter ↓</a>
     </div>
   </div>
   <p class="songs-status" id="status" role="status"></p>
 </section>
+
+<!-- Events. Waagerechte Zeitleiste nach tlb.betteroff.studio: eine Reihe
+     Fotos, die man zieht, darunter ein Lineal aus Strichen, dessen
+     Abspielkopf in der Bildmitte steht. Rechnung und Messwerte siehe .events
+     im CSS und evTick() im Skript.
+
+     Die Kacheln stehen hier im Markup wie die Cover in der Musik-Sektion,
+     nicht als Datenobjekt im Skript — das Skript rechnet nur ihre Lage.
+     data-ev gruppiert sie zum Event, data-first markiert den Gruppenanfang
+     (dort steht der lange Strich und die Beschriftung am Lineal).
+
+     ponytail: Platzhalterkacheln, es liegt kein Eventfoto im Repo. Ein Foto
+     kommt herein, indem in .ev-shot ein <img> gehaengt wird — der Verlauf und
+     das "Foto folgt" verschwinden dann von selbst dahinter. --ar ist das
+     Seitenverhaeltnis (Breite/Hoehe) und bestimmt die Kachelhoehe. -->
+<section class="events" id="events" aria-label="Events">
+  <div class="events-head">
+    <h2>Events</h2>
+    <p class="events-note">ziehen zum blättern</p>
+  </div>
+
+  <div class="ev-reel" id="evReel">
+    <div class="ev-row" id="evRow">
+        <article class="ev" data-ev="0" data-first="1" data-name="Clubshow" data-date="2025">
+          <div class="ev-card">
+            <span class="ev-i"><span>01</span></span>
+            <div class="ev-shot" style="--ar: 0.75"><img src="events/clubshow-01.webp" alt="Rutger auf der Box, Clubshow 2025" loading="lazy" decoding="async" draggable="false"></div>
+            <span class="ev-cap"><span>Clubshow (2025)</span></span>
+          </div>
+        </article>
+        <article class="ev" data-ev="0" data-name="Clubshow" data-date="2025">
+          <div class="ev-card">
+            <span class="ev-i"><span>02</span></span>
+            <div class="ev-shot" style="--ar: 1.186"><img src="events/clubshow-02.webp" alt="Am Pult, Clubshow 2025" loading="lazy" decoding="async" draggable="false"></div>
+            <span class="ev-cap"><span>Clubshow (2025)</span></span>
+          </div>
+        </article>
+        <article class="ev" data-ev="1" data-first="1" data-name="Trägertal" data-date="2026">
+          <div class="ev-card">
+            <span class="ev-i"><span>03</span></span>
+            <div class="ev-shot" style="--ar: 0.794"><img src="events/traegertal-01.webp" alt="Rutger im Rauch, Trägertal 2026" loading="lazy" decoding="async" draggable="false"></div>
+            <span class="ev-cap"><span>Trägertal (2026)</span></span>
+          </div>
+        </article>
+        <article class="ev" data-ev="1" data-name="Trägertal" data-date="2026">
+          <div class="ev-card">
+            <span class="ev-i"><span>04</span></span>
+            <div class="ev-shot" style="--ar: 0.563"><img src="events/traegertal-02.webp" alt="Rutger am Mikro, Trägertal 2026" loading="lazy" decoding="async" draggable="false"></div>
+            <span class="ev-cap"><span>Trägertal (2026)</span></span>
+          </div>
+        </article>
+        <article class="ev" data-ev="1" data-name="Trägertal" data-date="2026">
+          <div class="ev-card">
+            <span class="ev-i"><span>05</span></span>
+            <div class="ev-shot" style="--ar: 1.5"><img src="events/traegertal-03.webp" alt="Blick von der Bühne, Trägertal 2026" loading="lazy" decoding="async" draggable="false"></div>
+            <span class="ev-cap"><span>Trägertal (2026)</span></span>
+          </div>
+        </article>
+        <article class="ev" data-ev="2" data-first="1" data-name="Splash" data-date="09.2026">
+          <div class="ev-card">
+            <span class="ev-i"><span>06</span></span>
+            <div class="ev-shot" style="--ar: 1.0; --ev-hue: var(--hue-3)" data-ph="Foto folgt"></div>
+            <span class="ev-cap"><span>Splash (09.2026)</span></span>
+          </div>
+        </article>
+        <article class="ev" data-ev="2" data-name="Splash" data-date="09.2026">
+          <div class="ev-card">
+            <span class="ev-i"><span>07</span></span>
+            <div class="ev-shot" style="--ar: 0.72; --ev-hue: var(--hue-3)" data-ph="Foto folgt"></div>
+            <span class="ev-cap"><span>Splash (09.2026)</span></span>
+          </div>
+        </article>
+        <article class="ev" data-ev="2" data-name="Splash" data-date="09.2026">
+          <div class="ev-card">
+            <span class="ev-i"><span>08</span></span>
+            <div class="ev-shot" style="--ar: 1.33; --ev-hue: var(--hue-3)" data-ph="Foto folgt"></div>
+            <span class="ev-cap"><span>Splash (09.2026)</span></span>
+          </div>
+        </article>
+        <article class="ev" data-ev="2" data-name="Splash" data-date="09.2026">
+          <div class="ev-card">
+            <span class="ev-i"><span>09</span></span>
+            <div class="ev-shot" style="--ar: 0.8; --ev-hue: var(--hue-3)" data-ph="Foto folgt"></div>
+            <span class="ev-cap"><span>Splash (09.2026)</span></span>
+          </div>
+        </article>
+        <article class="ev" data-ev="2" data-name="Splash" data-date="09.2026">
+          <div class="ev-card">
+            <span class="ev-i"><span>10</span></span>
+            <div class="ev-shot" style="--ar: 1.2; --ev-hue: var(--hue-3)" data-ph="Foto folgt"></div>
+            <span class="ev-cap"><span>Splash (09.2026)</span></span>
+          </div>
+        </article>
+        <article class="ev" data-ev="3" data-first="1" data-name="Hafenklang" data-date="11.2026">
+          <div class="ev-card">
+            <span class="ev-i"><span>11</span></span>
+            <div class="ev-shot" style="--ar: 0.7; --ev-hue: var(--hue-2)" data-ph="Foto folgt"></div>
+            <span class="ev-cap"><span>Hafenklang (11.2026)</span></span>
+          </div>
+        </article>
+        <article class="ev" data-ev="3" data-name="Hafenklang" data-date="11.2026">
+          <div class="ev-card">
+            <span class="ev-i"><span>12</span></span>
+            <div class="ev-shot" style="--ar: 1.4; --ev-hue: var(--hue-2)" data-ph="Foto folgt"></div>
+            <span class="ev-cap"><span>Hafenklang (11.2026)</span></span>
+          </div>
+        </article>
+        <article class="ev" data-ev="3" data-name="Hafenklang" data-date="11.2026">
+          <div class="ev-card">
+            <span class="ev-i"><span>13</span></span>
+            <div class="ev-shot" style="--ar: 1.0; --ev-hue: var(--hue-2)" data-ph="Foto folgt"></div>
+            <span class="ev-cap"><span>Hafenklang (11.2026)</span></span>
+          </div>
+        </article>
+        <article class="ev" data-ev="4" data-first="1" data-name="Olympiahalle" data-date="02.2027">
+          <div class="ev-card">
+            <span class="ev-i"><span>14</span></span>
+            <div class="ev-shot" style="--ar: 1.33; --ev-hue: var(--hue-4)" data-ph="Foto folgt"></div>
+            <span class="ev-cap"><span>Olympiahalle (02.2027)</span></span>
+          </div>
+        </article>
+        <article class="ev" data-ev="4" data-name="Olympiahalle" data-date="02.2027">
+          <div class="ev-card">
+            <span class="ev-i"><span>15</span></span>
+            <div class="ev-shot" style="--ar: 0.75; --ev-hue: var(--hue-4)" data-ph="Foto folgt"></div>
+            <span class="ev-cap"><span>Olympiahalle (02.2027)</span></span>
+          </div>
+        </article>
+        <article class="ev" data-ev="4" data-name="Olympiahalle" data-date="02.2027">
+          <div class="ev-card">
+            <span class="ev-i"><span>16</span></span>
+            <div class="ev-shot" style="--ar: 1.0; --ev-hue: var(--hue-4)" data-ph="Foto folgt"></div>
+            <span class="ev-cap"><span>Olympiahalle (02.2027)</span></span>
+          </div>
+        </article>
+        <article class="ev" data-ev="4" data-name="Olympiahalle" data-date="02.2027">
+          <div class="ev-card">
+            <span class="ev-i"><span>17</span></span>
+            <div class="ev-shot" style="--ar: 1.6; --ev-hue: var(--hue-4)" data-ph="Foto folgt"></div>
+            <span class="ev-cap"><span>Olympiahalle (02.2027)</span></span>
+          </div>
+        </article>
+    </div>
+  </div>
+
+  <div class="ev-line" id="evLine" aria-hidden="true">
+    <canvas id="evTicks"></canvas>
+    <div class="ev-labels"><div class="ev-ltrack" id="evLabels"></div></div>
+  </div>
+</section>
+
+<!-- Games. Noch leer: der Abschnitt haelt nur den Platz frei. -->
+<section class="games" id="games" aria-label="Games">
+  <h2>Games</h2>
+  <p class="games-note">HTRJ-Minigame folgt</p>
+</section>
+
+<!-- Footer. Wird beim Herunterscrollen aufgedeckt: die Schnittkante wandert
+     hoch (siehe .footer im CSS, gesetzt in tick()). Letztes Kind vor der
+     Dev-Anzeige — sein Klebebereich ist der Body, also die ganze Seite, und
+     seine natuerliche Lage genau das letzte Stueck Scrollweg.
+     ponytail: die Ziele sind wie in der Menueleiste Platzhalter. -->
+<footer class="footer" id="footer">
+  <div class="footer-scale" id="footerScale">
+  <div class="footer-top">
+    <a class="wordmark" href="#top">Rutger</a>
+    <nav class="footer-cols" aria-label="Footer">
+      <div class="footer-col">
+        <span class="navlabel">werke</span>
+        <a href="#shop">shop</a>
+        <a href="#songs">songs</a>
+        <a href="#">musikvideos</a>
+      </div>
+      <div class="footer-col">
+        <span class="navlabel">live</span>
+        <a href="#">festivals</a>
+        <a href="#">shows</a>
+      </div>
+      <div class="footer-col">
+        <span class="navlabel">socials</span>
+        <a href="#">instagram</a>
+        <a href="#">tiktok</a>
+      </div>
+      <div class="footer-col">
+        <span class="navlabel">kontakt</span>
+        <a href="#">management</a>
+        <a href="#">e-mail</a>
+      </div>
+    </nav>
+  </div>
+  <div class="footer-base">
+    <span>© 2026 Rutger</span>
+    <a href="#">impressum</a>
+    <a href="#">datenschutz</a>
+  </div>
+  </div>
+</footer>
 
 <div class="hud" id="hud">–</div>
 
@@ -998,6 +1565,8 @@
   const navbar = document.getElementById('navbar');
   const hint   = document.getElementById('hint');
   const hud    = document.getElementById('hud');
+  const footer = document.getElementById('footer');
+  const footerScale = document.getElementById('footerScale');
 
   const clamp01 = v => Math.min(1, Math.max(0, v));
   const reduce  = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -1302,6 +1871,9 @@
 
     }
 
+    evResize();
+
+
     // Das Sternenfeld steht fest im Fenster (100lvh), nicht in einem Abschnitt.
     // Gemessen statt aus lvh gerechnet: nur der Browser weiss, wie gross sein
     // groesstes Fenster gerade ist.
@@ -1314,6 +1886,256 @@
     skyField.draw(reduce ? 0 : performance.now() / 1000);
 
     draw(eased);
+  }
+
+
+  // ---- Events: waagerechte Zeitleiste -------------------------------------
+  // Nachgebaut nach tlb.betteroff.studio. Die Konstanten sind die dort
+  // gemessenen, nicht geschaetzt (Bundle _nuxt/NYCGuiUc.js entminifiziert und
+  // am laufenden Objekt nachgeprueft):
+  //   Daempfung .1, Kippen = Rueckstand * .05 Grad, Zugfaktor 2 bzw. 3.5,
+  //   Lineal: Strich alle 11 px, 9 Striche je Foto, 12/22/50 px hoch,
+  //   Grundhelligkeit .25, Woelbung +18 px ueber 10 Striche mit Abfall
+  //   (1-t)^(1/.55), Nachziehen der Strichhoehen .1 (Abspielkopf .2).
+  //
+  // ponytail: die Daempfung laeuft ohne Bildraten-Ausgleich, wie Shop und
+  // Musik auf dieser Seite auch. Auf einem 120-Hz-Schirm rastet die Reihe
+  // dadurch doppelt so schnell ein wie in der Vorlage. Ausbauweg: den
+  // Zeitabstand in tick() messen und EV_EASE damit multiplizieren - dann
+  // aber fuer alle drei Sektionen, sonst faellt der Unterschied erst recht auf.
+  const EV_EASE   = 0.1;    // Annaeherung der Reihe an ihr Ziel, je Bild
+  const EV_TILT   = 0.05;   // Grad Kippung je Pixel Rueckstand
+  const EV_STEP   = 11;     // px zwischen zwei Strichen (Strich 1 + Luecke 10)
+  const EV_PER    = 9;      // Striche je Foto
+  const EV_H_MIN  = 12;     // normaler Strich
+  const EV_H_MAJ  = 22;     // Gruppenanfang
+  const EV_H_HEAD = 50;     // Abspielkopf in der Bildmitte
+  const EV_ALPHA  = 0.25;
+  const EV_NEAR   = 10;     // Reichweite der Woelbung in Strichen
+  const EV_BOOST  = 18;     // px, die der Strich unter dem Zeiger zulegt
+  const EV_FALL   = 0.55;   // Form des Abfalls: der Exponent ist 1/EV_FALL
+  const EV_TICK_E = 0.1;    // Nachziehen der Strichhoehen
+  const EV_HEAD_E = 0.2;    // dasselbe fuer den Abspielkopf, schneller
+
+  const evReel   = document.getElementById('evReel');
+  const evRow    = document.getElementById('evRow');
+  const evTicksC = document.getElementById('evTicks');
+  const evLabels = document.getElementById('evLabels');
+  const evEls    = Array.from(evRow.children);
+
+  // Zielposition und nachgezogene Position, beide in Pixeln der Reihe.
+  // evLag = evPos - evTarget ist der Rueckstand, und DER ist das Kippen -
+  // dieselbe Idee wie surf bei den Bildebenen: die Daempfung liefert die
+  // Geschwindigkeit gratis mit.
+  let evTarget = 0, evPos = 0, evLag = 0;
+  let evTotal = 0, evScale = 1, evLabelW = 0;
+  let evSlides = [];                     // { el, card, left, right }
+  let evMajor  = new Uint8Array(0);      // je Strich: 1 = Gruppenanfang
+  let evHeights = new Float32Array(0);   // nachgezogene Zusatzhoehen je Slot
+  let evFirstIx = null;                  // erster sichtbarer Strich, fuers Mitschieben
+  let evHoverX  = -1;
+  let evCtx = null, evCw = 0, evCh = 0;
+
+  const evWrap = (min, max, v) => {
+    const r = max - min;
+    return r > 0 ? min + (((v - min) % r) + r) % r : min;
+  };
+
+  function evResize() {
+    if (reduce || !evEls.length) return;
+
+    // Die hoechste Kachel darf nie hoeher werden als die Reihe selbst, sonst
+    // schneidet deren overflow sie oben und unten ab. Was der Reihe bleibt,
+    // weiss erst das Layout — also gemessen und zurueckgeschrieben, nicht in
+    // svh geschaetzt. Vor der Messung der Kacheln, damit sie schon mit der
+    // richtigen Hoehe vermessen werden.
+    evReel.style.setProperty('--ev-h-max', evReel.clientHeight + 'px');
+
+    // offsetLeft/offsetWidth statt getBoundingClientRect: auf den Kacheln
+    // steht ein laufendes transform, und das faelscht nur den Rect-Wert.
+    // Derselbe Grund wie beim zentrierenden Rand im Shop.
+    const gap = parseFloat(getComputedStyle(evEls[0]).marginRight) || 0;
+    evSlides = evEls.map(el => ({
+      el,
+      card:  el.firstElementChild,
+      left:  el.offsetLeft,
+      right: el.offsetLeft + el.offsetWidth,
+    }));
+    evTotal = evSlides[evSlides.length - 1].right + gap;
+
+    // Das Lineal ist eine gestauchte Karte der Reihe: es ist so lang, wie es
+    // Striche hat, und diese Laenge wird auf die Reihenlaenge abgebildet.
+    const ticks = evEls.length * EV_PER;
+    evMajor = new Uint8Array(ticks);
+    for (let i = 0; i < evEls.length; i++) {
+      if (evEls[i].dataset.first !== undefined) evMajor[i * EV_PER] = 1;
+    }
+    evLabelW = ticks * EV_STEP;
+    evScale  = evTotal > 0 ? evLabelW / evTotal : 1;
+
+    // Zwei gleiche Spuren nebeneinander: die zweite faengt auf, was die erste
+    // beim Umlaufen links freigibt. Ohne sie klaffte am Umschlag eine Luecke,
+    // so breit wie das Fenster.
+    let marks = '';
+    for (let i = 0; i < evEls.length; i++) {
+      const el = evEls[i];
+      if (el.dataset.first === undefined) continue;
+      marks += '<span class="ev-lab" style="left:' + (i * EV_PER * EV_STEP) + 'px">'
+             + '<i>' + el.dataset.date + '</i><b>' + el.dataset.name + '</b></span>';
+    }
+    evLabels.style.width = (evLabelW * 2) + 'px';
+    evLabels.innerHTML =
+        '<div style="position:absolute;top:0;bottom:0;left:0;width:' + evLabelW + 'px">' + marks + '</div>'
+      + '<div style="position:absolute;top:0;bottom:0;left:' + evLabelW + 'px;width:' + evLabelW + 'px">' + marks + '</div>';
+
+    // Canvas in Geraetepixeln, sonst sind 1-px-Striche auf Retina matschig.
+    const dpr = Math.min(2, devicePixelRatio || 1);
+    evCw = evTicksC.clientWidth;
+    evCh = evTicksC.clientHeight;
+    evTicksC.width  = Math.round(evCw * dpr);
+    evTicksC.height = Math.round(evCh * dpr);
+    evCtx = evTicksC.getContext('2d');
+    evCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    evCtx.strokeStyle = '#3B2B49';
+    evCtx.lineWidth = 1;
+
+    const slots = Math.ceil(evCw / EV_STEP) + 4;
+    if (slots !== evHeights.length) { evHeights = new Float32Array(slots); evFirstIx = null; }
+  }
+
+  function evDrawTicks(offset) {
+    if (!evCtx || evCw <= 0 || evCh <= 0) return;
+    evCtx.clearRect(0, 0, evCw, evCh);
+
+    let frac = offset % EV_STEP; if (frac < 0) frac += EV_STEP;
+    const first = Math.round((offset - frac) / EV_STEP);
+
+    // Die nachgezogenen Hoehen haengen am SLOT, die Striche wandern aber durch
+    // die Slots. Ohne dieses Mitschieben bliebe eine Woelbung an ihrer Stelle
+    // auf dem Schirm kleben, statt mit ihrem Strich zu laufen.
+    const n = evHeights.length;
+    if (evFirstIx === null) evFirstIx = first;
+    else if (first !== evFirstIx) {
+      const d = first - evFirstIx;
+      if (Math.abs(d) >= n) evHeights.fill(0);
+      else if (d > 0) { evHeights.copyWithin(0, d); evHeights.fill(0, n - d); }
+      else { evHeights.copyWithin(-d, 0, n + d); evHeights.fill(0, 0, -d); }
+      evFirstIx = first;
+    }
+
+    const base  = evCh - 1;                                  // Fusslinie
+    // Der Kopf darf nie hoeher werden als der Canvas, sonst wird er oben
+    // abgeschnitten und sieht kuerzer aus, als er ist. Auf flachen Fenstern
+    // faellt das Lineal damit niedriger aus statt falsch.
+    const headH = Math.min(EV_H_HEAD, evCh - 2);
+    const head  = Math.round((offset + evCw / 2) / EV_STEP); // Strich in der Bildmitte
+    const range = EV_NEAR * EV_STEP;
+    const exp   = 1 / Math.max(0.001, EV_FALL);
+    const P     = evMajor.length;
+
+    for (let x = -frac, e = 0; x <= evCw + EV_STEP && e < n; x += EV_STEP, e++) {
+      const t = first + e;
+      let idx = P ? t % P : 0; if (idx < 0) idx += P;
+      const h0 = P && evMajor[idx] ? EV_H_MAJ : EV_H_MIN;
+
+      let add = 0;
+      if (t === head) add = headH - h0;
+      else if (evHoverX >= 0) {
+        const d = Math.abs(x - evHoverX);
+        if (d < range) add = EV_BOOST * Math.pow(1 - d / range, exp);
+      }
+      evHeights[e] += (add - evHeights[e]) * (t === head ? EV_HEAD_E : EV_TICK_E);
+
+      const h = h0 + evHeights[e];
+      let a = EV_ALPHA;
+      if (t === head) {
+        const f = Math.max(0, Math.min(1, (h - h0) / Math.max(1, headH - h0)));
+        a = EV_ALPHA + f * (1 - EV_ALPHA);
+      }
+      evCtx.globalAlpha = a;
+      const px = Math.round(x) + 0.5;   // halbe Pixel, sonst wird 1 px zu 2 grauen
+      evCtx.beginPath();
+      evCtx.moveTo(px, base);
+      evCtx.lineTo(px, base - h);
+      evCtx.stroke();
+    }
+    evCtx.globalAlpha = 1;
+  }
+
+  function evTick() {
+    if (reduce || !evSlides.length || evTotal <= 0) return;
+
+    evPos += (evTarget - evPos) * EV_EASE;
+    evPos = Math.round(evPos * 100) / 100;
+    evLag = Math.round((evPos - evTarget) * 1000) / 1000;
+
+    // Endlos: jede Kachel wird in ihren eigenen Bereich umgeschlagen. Der ist
+    // genau eine Reihenlaenge lang, also taucht sie rechts wieder auf, sobald
+    // sie links hinausgefahren ist - ohne Sprung, weil beide Enden derselbe
+    // Punkt sind.
+    const deg = 'rotateY(' + (evLag * EV_TILT).toFixed(3) + 'deg)';
+    for (const s of evSlides) {
+      const d = evWrap(-(evTotal - s.right), s.right, evPos);
+      s.el.style.transform = 'translate3d(' + (-d) + 'px,0,0)';
+      s.card.style.transform = deg;
+    }
+
+    const off = evPos * evScale;
+    evDrawTicks(off);
+    const lx = evLabelW > 0 ? ((off % evLabelW) + evLabelW) % evLabelW : 0;
+    evLabels.style.transform = 'translate3d(' + (-lx) + 'px,0,0)';
+  }
+
+  // Ziehen. Der Faktor stammt aus der Vorlage: 100 px Hand sind 200 px Reihe
+  // am Zeiger und 350 px am Finger - am Handy ist der Weg kuerzer, also muss
+  // eine Geste mehr bewegen.
+  // Die Achsentrennung macht touch-action: pan-y im CSS, nicht dieser Code:
+  // deklarativ greift sie schon vor dem ersten Ereignis, waehrend die Vorlage
+  // sie von Hand nachbaut (preventDefault nur wenn |dx| > |dy|).
+  if (!reduce) {
+    let evDown = false, evBase = 0;
+    const evMult = () => matchMedia('(pointer: coarse)').matches ? 3.5 : 2;
+
+    evReel.addEventListener('pointerdown', e => {
+      evDown = true;
+      evBase = evTarget + e.clientX * evMult();
+      evReel.classList.add('is-drag');
+      if (evReel.setPointerCapture) evReel.setPointerCapture(e.pointerId);
+    });
+    evReel.addEventListener('pointermove', e => {
+      if (!evDown) return;
+      evTarget = evBase - e.clientX * evMult();
+    });
+    const evUp = e => {
+      if (!evDown) return;
+      evDown = false;
+      evReel.classList.remove('is-drag');
+      if (evReel.releasePointerCapture) evReel.releasePointerCapture(e.pointerId);
+    };
+    evReel.addEventListener('pointerup', evUp);
+    evReel.addEventListener('pointercancel', evUp);
+
+    // Woelbung unter dem Zeiger. Nur am Lineal selbst und nur mit feinem
+    // Zeiger - ein Finger hat keine Schwebeposition, und ohne diese Pruefung
+    // bliebe die Woelbung nach einem Tipp stehen.
+    evTicksC.addEventListener('pointermove', e => {
+      if (e.pointerType === 'touch') return;
+      evHoverX = e.offsetX;
+    });
+    evTicksC.addEventListener('pointerleave', () => { evHoverX = -1; });
+
+    // Pfeiltasten springen zur Nachbarkachel - die einzige Bedienung ohne
+    // Zeigegeraet, und ohne sie waere die Reihe per Tastatur nicht zu bewegen.
+    evReel.tabIndex = 0;
+    evReel.addEventListener('keydown', e => {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      e.preventDefault();
+      let i = 0;
+      for (let k = 1; k < evSlides.length; k++)
+        if (Math.abs(evSlides[k].left - evTarget) < Math.abs(evSlides[i].left - evTarget)) i = k;
+      const j = Math.max(0, Math.min(evSlides.length - 1, i + (e.key === 'ArrowRight' ? 1 : -1)));
+      evTarget = evSlides[j].left;
+    });
   }
 
   function draw(t) {
@@ -1470,6 +2292,26 @@
     // auf". Beide steigen auf 1 und fallen nicht wieder — dazwischen bleibt das
     // Feld stehen, statt am Abschnittswechsel abzublenden und neu aufzublenden.
     // Solange es unsichtbar ist, laeuft die Schleife nicht mit (Akku).
+    // Footer freilegen. Er klebt am Fensterboden und ist letztes Kind des
+    // Body, seine natuerliche Lage ist also genau das letzte Stueck Scrollweg.
+    // Ueber diese eine Footerhoehe blendet er auf — getBoundingClientRect
+    // hilft hier nicht, ein geklebter Kasten meldet die geklebte Lage, nicht
+    // die natuerliche.
+    const fh   = footer.offsetHeight;
+    const rest = document.documentElement.scrollHeight - innerHeight - fh;
+    const rev  = fh > 0 ? clamp01((scrollY - rest) / fh) : 0;
+    // Die Kante. Sie steht bei rev=0 auf der Unterkante des Fensters und
+    // wandert um die volle Footerhoehe hoch — genau der Weg, den der deckende
+    // Inhalt in der Vorlage zuruecklegt.
+    footer.style.clipPath = `inset(${((1 - rev) * fh).toFixed(1)}px 0 0 0)`;
+    footer.style.setProperty('--fr', rev.toFixed(3));
+    // Die drei Werte der Vorlage, linear ueber denselben Weg.
+    footerScale.style.opacity   = rev.toFixed(3);
+    footerScale.style.filter    = `blur(${(6 * (1 - rev)).toFixed(2)}px)`;
+    footerScale.style.transform = `scale(${(0.9 + 0.1 * rev).toFixed(4)})`;
+
+    evTick();
+
     const skyOn = Math.max(fadeT, p);
     sky.style.opacity = String(skyOn);
     if (skyOn > 0) skyField.draw(performance.now() / 1000);
