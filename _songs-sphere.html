@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0e0b10">
+  <title>Rutger — Songs-Kugel</title>
+  <style>
+    * { box-sizing: border-box; }
+    :root { color-scheme: dark; font-family: Arial, Helvetica, sans-serif; color: #f7f5ef; background: #0e0b10; }
+    html, body { overscroll-behavior: none; }
+    body { margin: 0; overflow: hidden; }
+    button { font: inherit; color: inherit; }
+    .preview { height: 100svh; min-height: 18rem; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; padding: clamp(1rem, 2.5vw, 3rem); background: radial-gradient(ellipse at 50% 48%, #211826 0%, #100d12 48%, #0b0a0c 85%); }
+    .topbar, .bottom { display: flex; align-items: center; justify-content: space-between; gap: clamp(.6rem, 2vw, 2rem); }
+    .topbar { position: relative; z-index: 2; }
+    .brand { margin: 0; font-weight: 900; font-size: clamp(1.05rem, 1.5vw, 1.6rem); letter-spacing: -.055em; }
+    .edition { font-size: clamp(.6rem, .8vw, .75rem); letter-spacing: .16em; color: #a79dac; }
+    .variants { display: flex; gap: .25rem; padding: .25rem; border: 1px solid #ffffff26; border-radius: 99px; }
+    .variants button { border: 0; border-radius: 99px; padding: clamp(.5rem, .8vw, .75rem) clamp(.7rem, 1.2vw, 1.2rem); background: transparent; font-size: clamp(.7rem, .85vw, .85rem); cursor: pointer; white-space: nowrap; }
+    .variants button[aria-pressed="true"] { background: #f7f5ef; color: #161218; }
+    .variants button:disabled { opacity: .35; cursor: not-allowed; }
+    .controls summary { cursor: pointer; list-style: none; border: 1px solid #ffffff40; border-radius: 99px; padding: .7rem 1rem; font-size: clamp(.7rem, .85vw, .85rem); }
+    .controls summary::-webkit-details-marker { display: none; }
+    .controls[open] summary { background: #f7f5ef; color: #161218; }
+    .control-panel { position: absolute; right: 0; top: calc(100% + .7rem); width: min(25rem, calc(100vw - 2rem)); max-height: calc(100svh - 6rem); overflow-y: auto; padding: clamp(1rem, 1.8vw, 1.4rem); border: 1px solid #514558; border-radius: 14px; background: #19131ef5; box-shadow: 0 1rem 3rem #0006; }
+    .control-panel h2 { margin: 0 0 .5rem; font-size: clamp(.95rem, 1.2vw, 1.1rem); }
+    .control-panel p { margin: .5rem 0; font-size: clamp(.7rem, .85vw, .8rem); line-height: 1.5; color: #b4aab9; }
+    .control-panel label { display: flex; justify-content: space-between; gap: 1rem; margin-top: 1rem; font-size: clamp(.8rem, 1vw, .9rem); }
+    .control-panel input { width: 100%; margin: .75rem 0; accent-color: #d0b0f5; }
+    .control-panel .variants { flex-wrap: wrap; border: 0; padding: 0; gap: .35rem; }
+    .control-panel .variants button { border: 1px solid #514558; }
+    #density-result { padding-top: .6rem; border-top: 1px solid #514558; color: #b9d7bf; }
+    #density-result[data-collision="true"] { color: #ffc48c; }
+    .control-panel small { font-size: .75em; color: #b4aab9; }
+    button:focus-visible, .scene:focus-visible { outline: 2px solid #d0b0f5; outline-offset: 5px; }
+    .scene { position: relative; min-height: 0; width: 100%; cursor: grab; touch-action: none; overscroll-behavior: contain; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; perspective: var(--perspective, 180rem); }
+    .scene.dragging { cursor: grabbing; }
+    .world { position: absolute; left: 50%; top: 50%; width: 0; height: 0; transform-style: preserve-3d; pointer-events: none; will-change: transform; }
+    .cover { position: absolute; left: 0; top: 0; width: var(--card); height: var(--card); margin: calc(var(--card) / -2); padding: calc(var(--card) * .075); background: #faf9f4; backface-visibility: visible; }
+    .cover img { display: block; width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
+    .title { position: absolute; left: 0; top: 0; margin: 0; font-weight: 900; font-size: calc(var(--diameter) * .225); line-height: 1.5; letter-spacing: -.075em; white-space: nowrap; pointer-events: none; backface-visibility: visible; }
+    .bottom { padding-top: clamp(.75rem, 1.5vw, 1.5rem); }
+    .hint { margin: 0; color: #b4aab9; font-size: clamp(.65rem, .85vw, .85rem); line-height: 1.6; }
+    .hint span { display: block; font-size: .85em; color: #7f7484; }
+    .motion { display: flex; gap: clamp(.6rem, 1.2vw, 1rem); align-items: center; }
+    .motion button { background: transparent; border: 0; border-bottom: 1px solid #6d6274; padding: .45rem 0; cursor: pointer; font-size: clamp(.65rem, .85vw, .8rem); white-space: nowrap; }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+    @media (max-width: 420px) { .edition { display: none; } .hint span { max-width: 11rem; } .motion { gap: .6rem; } }
+    @media (max-height: 450px) and (min-width: 600px) { .preview { padding: .75rem clamp(1rem, 3vw, 3rem); } .bottom { padding-top: .4rem; } .hint span { display: none; } }
+  </style>
+</head>
+<body>
+  <div class="preview">
+    <header class="topbar">
+      <p class="brand">RUTGER<span class="edition"> &nbsp; / SONGS</span></p>
+      <details class="controls">
+        <summary>Anzahl &amp; Größe</summary>
+        <section class="control-panel" aria-label="Kugel vergleichen">
+          <h2>Ausprobieren: <span id="profile-name">Bildschirm</span></h2>
+          <p>Anzahl und Größe getrennt vergleichen. Für Handy und größere Screens bleiben die Einstellungen während dieser Sitzung getrennt.</p>
+          <label for="count">Cover auf der Kugel <output id="count-value" for="count">26</output></label>
+          <input id="count" type="range" min="8" max="64" step="1" value="26">
+          <div class="variants" role="group" aria-label="Kataloggrößen vergleichen">
+            <button type="button" data-count="13" aria-pressed="false">13 heute</button>
+            <button type="button" data-count="26" aria-pressed="true">26 doppelt</button>
+            <button type="button" data-count="23" aria-pressed="false">23 / +1 Jahr</button>
+            <button type="button" data-count="25" aria-pressed="false">25 Handy-Max.</button>
+            <button type="button" data-count="33" aria-pressed="false">33 / +2</button>
+            <button type="button" data-count="43" aria-pressed="false">43 / +3</button>
+            <button type="button" data-count="53" aria-pressed="false">53 / +4</button>
+          </div>
+          <label for="size">Covergröße <output id="size-value" for="size">100 %</output></label>
+          <input id="size" type="range" min="70" max="150" step="5" value="100">
+          <small>Rahmenkante aktuell: <span id="card-pixels">—</span>. Bleibt beim Ändern der Anzahl gleich.</small>
+          <p id="density-result" role="status"></p>
+          <p id="simulation-note"></p>
+          <p>Handy: maximal 25 Cover. Die Obergrenze für größere Screens ist noch offen. Noch keine Sanity-Anbindung.</p>
+        </section>
+      </details>
+    </header>
+    <main class="scene" tabindex="0" aria-label="Songcover-Kugel, mit Ziehen oder Pfeiltasten drehen" aria-describedby="instructions">
+      <div class="world"><h1 class="title">Songs</h1></div>
+    </main>
+    <footer class="bottom">
+      <p class="hint" id="instructions">Ziehen zum Drehen<span>Oder mit den Pfeiltasten bewegen.</span></p>
+      <div class="motion">
+        <button type="button" id="pause" aria-pressed="false">Pause</button>
+        <button type="button" id="reset">Zurücksetzen</button>
+      </div>
+    </footer>
+    <p class="sr-only" id="status" role="status">13 Songcover, jedes einmal.</p>
+  </div>
+  <script src="_songs-sphere.js"></script>
+</body>
+</html>

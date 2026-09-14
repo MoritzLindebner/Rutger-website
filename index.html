@@ -58,14 +58,6 @@
     --card-w:   min(clamp(280px, 33vw, 400px), 74vw);
     --card-gap: clamp(15px, 1.6vw, 30px);
 
-    /* Breite einer Bildebene der 3D-Kette unter dem Shop. Die Vorlage steht
-       fest auf 320x384 px; hier waechst sie mit dem Fenster und ist auf 62vw
-       gedeckelt, damit auf dem Handy noch Kette links und rechts sichtbar
-       bleibt. An dieser einen Zahl haengt die ganze Geometrie: Schrittweite,
-       Wellenhoehe und Perspektive rechnen alle in Vielfachen davon — sonst
-       saehe die Kette auf dem Handy flacher aus als am Desktop. */
-    --plane-w: min(clamp(150px, 20vw, 320px), 62vw);
-
     /* Kachelfarben. Die Vorlage hat dafuer --hue-1..5; hier stehen die Toene der
        Seite statt der fremden Palette. */
     --hue-1: #6C0BA9;
@@ -632,226 +624,65 @@
     color: rgb(255 255 255 / .72);
   }
 
-  /* ---------- Bildebenen (3D-Kette) ---------- */
-
-  /* Nach examples.motion.dev/vue/scroll-velocity-linked-offset: eine Kette
-     gleicher Bildebenen laeuft schraeg nach rechts oben in die Tiefe, der
-     Scroll faehrt hindurch. Die Geometrie ist von dort abgemessen (Schritt
-     0.75 / -0.2625 / -0.9 Kachelbreiten, Drehung -50 Grad, Perspektive
-     6.25 x Kachelbreite) und steht in Vielfachen von --plane-w, damit sie
-     auf jeder Groesse gleich aussieht.
-
-     Wie der Shop: hohe Laufstrecke, klebendes Fenster. Kein eigener
-     Hintergrund — #bgfx und das Sternenfeld liegen dahinter. */
-  .planes {
+  /* ---------- Songs ---------- */
+  .songs {
     position: relative;
     z-index: 2;
     height: 100svh;
-    background: transparent;
+    display: grid;
+    grid-template-rows: minmax(0, 1fr) auto;
+    padding: calc(var(--nav-h) + clamp(.5rem, 2svh, 1.5rem)) clamp(1.25rem, 5vw, 5rem) clamp(.75rem, 2svh, 1.5rem);
   }
-  /* Kein transform hier und auf .planes: das bricht sticky. */
-  .planes-sticky {
-    position: sticky;
-    top: 0;
-    height: 100svh;
-    overflow: hidden;
+  .songs .scene {
+    position: relative;
+    min-height: 0;
+    width: min(100%, 100svh);
+    justify-self: center;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+    perspective: var(--perspective, 180rem);
   }
-
-  /* Der Perspektivkasten. Perspektive gehoert auf den ELTERNTEIL der Kette,
-     nicht auf die Kette selbst — sonst haetten die Ebenen jede ihren eigenen
-     Fluchtpunkt. */
-  .planes-stage {
+  .songs .scene.dragging { cursor: grabbing; }
+  .songs .world {
     position: absolute;
-    inset: 0;
-    perspective: calc(var(--plane-w) * 6.25);
-    /* Die Kette laeuft nach hinten oben aus dem Bild — und damit genau in die
-       feste Menueleiste. Die steht mit z-index 100 zwar davor, aber ihre
-       Schrift ist an dieser Stelle dunkel (--nav-turn) und auf einem Foto
-       unlesbar. Also blendet die Kette aus, bevor sie dort ankommt. Als
-       Verlauf, nicht als Schnitt: eine harte Kante quer durch ein Bild faellt
-       auf, ein Ausblenden nicht. Titel und Hinweis sind Geschwister der Buehne
-       und bleiben davon unberuehrt.
-
-       Bis zur Leistenunterkante ganz weg, erst darunter einblenden: ein
-       Verlauf, der schon an der Unterkante voll deckt, ist auf halber Hoehe
-       erst halb durchsichtig — und halb durchsichtiges Foto unter dunkler
-       Schrift ist immer noch unlesbar. */
-    -webkit-mask-image: linear-gradient(to bottom, transparent var(--nav-h), #000 calc(var(--nav-h) + 9svh));
-            mask-image: linear-gradient(to bottom, transparent var(--nav-h), #000 calc(var(--nav-h) + 9svh));
-  }
-
-  /* Nullpunkt der Kette: nulldimensionaler Anker, an dem alle Ebenen haengen.
-     Waagerecht auf dem Fluchtpunkt (perspective-origin ist 50% 50%), senkrecht
-     ein Drittel Kachelbreite darunter — so wie in der Vorlage gemessen. Der
-     Versatz zum Fluchtpunkt skaliert mit der Tiefe: die Kette zieht nach
-     hinten von selbst zur Bildmitte, und das ist der Tunnel-Eindruck.
-     In Kachelbreiten statt Prozent, damit er auf jedem Fenster gleich sitzt.
-     preserve-3d gibt die Tiefe der Kinder an die Perspektive weiter; ohne das
-     laegen alle flach aufeinander.
-     Das Script schiebt den Anker waagerecht (PL_SWEEP): das ist die Kamerafahrt
-     quer durch den Raum. Erlaubt neben preserve-3d — die Kinder bleiben im
-     3D-Raum, sie haengen nur an einem wandernden Nullpunkt. */
-  .planes-track {
-    position: absolute;
-    left: 50%;
-    top: calc(50% + var(--plane-w) * 0.35);
-    width: 0;
-    height: 0;
+    left: 50%; top: 50%;
+    width: 0; height: 0;
     transform-style: preserve-3d;
+    pointer-events: none;
     will-change: transform;
   }
-
-  /* Die Ebene sitzt mittig auf dem Anker (negatives left/top statt translate:
-     translate wuerde das Transform aus dem Script ueberschreiben).
-     QUADRATISCH, nicht 5:6 wie die Vorlage: hier haengen Song-Cover drin, und
-     die sind alle 1:1 (gemessen: 3000x3000 bei elf von dreizehn). Ein
-     hochkantes Fenster wuerde jedes Cover oben und unten beschneiden. */
-  .plane {
+  .songs .cover {
     position: absolute;
-    left: calc(var(--plane-w) / -2);
-    top:  calc(var(--plane-w) / -2);
-    width:  var(--plane-w);
-    height: var(--plane-w);
-    background-color: var(--ground);
-    box-shadow: 0 25px 50px -12px rgb(0 0 0 / .45);
-    /* Startwert ohne JS: die Kette liegt als Stapel aufeinander. Verteilen
-       darf nur das Script — es kennt die Scrollposition. */
-    opacity: 0;
-    will-change: transform, opacity;
+    left: 0; top: 0;
+    width: var(--card); height: var(--card);
+    margin: calc(var(--card) / -2);
+    padding: calc(var(--card) * .075);
+    background: #faf9f4;
+    backface-visibility: visible;
   }
-
-  /* Als <img>, nicht als background-image: so traegt jedes Cover seinen Namen
-     im alt-Text, und loading="lazy" haelt die 1,5 MB aus dem Seitenaufruf
-     heraus. Die Ebenen liegen alle auf demselben Layout-Punkt, also entscheidet
-     der Browser fuer alle gleichzeitig — geladen wird, wenn die Sektion
-     naeherrueckt, nicht beim Aufruf der Seite. */
-  .plane-image {
-    display: block;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    user-select: none;
-  }
-
-  /* Nummer und Name ueber der Ecke, wie in der Vorlage. Kind der Ebene, dreht
-     also mit ihr — die Beschriftung gehoert zum Cover, nicht ans Fenster.
-     nowrap und sichtbarer Ueberstand: die laengsten Namen sind breiter als
-     eine Kachel, und ein Umbruch ueber zwei Zeilen wuerde in die Nachbarebene
-     laufen. Im Schraegraum liest sich der Ueberstand als Teil der Kette. */
-  /* Rechts neben der Kachel, aber an ihrer UNTERkante. Auf Oberkantenhoehe
-     laege der Name auf der Nachbarkachel: die Kette steigt nach rechts oben,
-     rechts oben ist also immer belegt. Unten rechts ist die Luecke, die das
-     Steigen aufreisst. */
-  .plane-index {
+  .songs .cover img { display: block; width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
+  .songs .title {
     position: absolute;
-    left: 100%;
-    bottom: 0;
-    margin-left: 10px;
-    white-space: nowrap;
-    /* Endlos laufen darf der Name nicht: auf dem Handy ist "Zick Zack -
-       Rutger, JuleZ & KAHLERT" breiter als der ganze Bildschirm. In
-       Kachelbreiten gedeckelt — am Desktop passen damit alle Namen ganz
-       hinein, auf dem Handy schneidet es mit Auslassungspunkten ab. */
-    max-width: calc(var(--plane-w) * 1.6);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    font-family: var(--font-nav);
-    font-size: clamp(10px, .8vw, 13px);
-    letter-spacing: .04em;
-    /* Nicht --text-muted: das ist fuer den dunklen Grund der Intro gedacht und
-       verschwindet auf dem hellen Verlauf, der hinter dieser Sektion liegt.
-       Derselbe Ton wie die Menueleiste im hellen Zustand, eine Spur
-       aufgehellt. */
-    color: #3B2B49;
-  }
-
-  /* Kurzer Strich von der Kachelkante zum Namen. Steht die Beschriftung neben
-     statt ueber der Kachel, ist ohne ihn nicht mehr eindeutig, zu welcher sie
-     gehoert — die Nachbarkachel ist naeher dran als die eigene. */
-  .plane-index::before {
-    content: "";
-    display: inline-block;
-    vertical-align: middle;
-    width: clamp(10px, 1.2vw, 20px);
-    height: 1px;
-    margin-right: 7px;
-    background: currentColor;
-    opacity: .55;
-  }
-
-  /* Auf dem Handy hochkant ist rechts neben der Kachel kein Platz: gemessen
-     auf 320 und 375 px lief dort JEDER sichtbare Name ueber den Bildrand, weil
-     die Kachel schon die halbe Breite einnimmt. Also unter die Kachel, an
-     ihrer linken Kante — dorthin, wo das Steigen der Kette die Luecke laesst.
-     Immer noch nicht drueber, und der Name bleibt lesbar statt zu "Ketch…" zu
-     schrumpfen. Der Verbindungsstrich entfaellt: direkt unter der Kachel ist
-     die Zuordnung ohnehin eindeutig.
-     MUSS hinter den beiden Regeln oben stehen: eine Media Query erhoeht die
-     Spezifitaet nicht, davor haette die allgemeine Regel gewonnen. */
-  @media (max-width: 600px) {
-    .plane-index {
-      /* ponytail: an der linken Kachelkante. Auf 390 px Breite ist fuer den
-         Namen kein wirklich freier Platz mehr — nach rechts versetzt ragt er
-         aus dem Bild (gemessen: 2 von 3), hier bleibt er im Fenster, wird aber
-         von der naechstvorderen Kachel teilweise ueberdeckt. Von beiden
-         Uebeln das kleinere. Sauber loesen laesst sich das nur, indem der Name
-         auf dem Handy nicht an der Kachel haengt, sondern fest unten im
-         Fenster steht — das waere ein zweiter Layoutpfad. */
-      left: 0;
-      top: 100%;
-      bottom: auto;
-      margin-left: 0;
-      margin-top: 7px;
-      max-width: calc(var(--plane-w) * 1.9);
-    }
-    .plane-index::before { display: none; }
-  }
-
-  /* Handy quer: breit genug fuer den Namen rechts daneben, aber nur ~390 px
-     hoch. An der Kachelunterkante angesetzt rutschte er dort unter den
-     Bildrand. Auf halbe Kachelhoehe gesetzt bleibt er im Bild — Platz ist
-     rechts, nur nicht unten. */
-  @media (max-height: 500px) and (min-width: 601px) {
-    .plane-index { bottom: auto; top: 45%; }
-  }
-
-  /* Ueberschrift liegt UEBER der Kette, wie in der Vorlage. pointer-events
-     aus, sonst faengt der unsichtbare Kasten Klicks auf die Bilder ab. */
-  .planes-head {
-    position: absolute;
-    z-index: 2;
-    top: calc(var(--nav-h) + clamp(.5rem, 3svh, 2.5rem));
-    left: clamp(1.25rem, 5vw, 5rem);
-    right: clamp(1.25rem, 5vw, 5rem);
-    pointer-events: none;
-  }
-  .planes h2 {
+    left: 0; top: 0;
     margin: 0;
-    font-size: clamp(1.5rem, 4.4vw, 3.5rem);
-    letter-spacing: -.03em;
-    text-transform: uppercase;
-    line-height: .95;
-  }
-  .planes-count {
-    font-family: var(--font-nav);
-    font-size: clamp(.7rem, 1vw, .9rem);
-    color: #6B5A79;
-    vertical-align: super;
-    margin-left: .5em;
-    letter-spacing: .05em;
-  }
-  .planes-hint {
-    position: absolute;
-    z-index: 2;
-    right: clamp(1.25rem, 5vw, 5rem);
-    bottom: clamp(1rem, 4svh, 3rem);
-    font-family: var(--font-nav);
-    font-size: clamp(9px, .7vw, 12px);
-    letter-spacing: .18em;
-    text-transform: uppercase;
-    color: #6B5A79;
+    color: #faf9f4;
+    font-weight: 900;
+    font-size: calc(var(--diameter) * .225);
+    line-height: 1.5;
+    letter-spacing: -.075em;
+    white-space: nowrap;
     pointer-events: none;
+    backface-visibility: visible;
   }
+  .songs-bottom { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem 1rem; padding-top: clamp(.5rem, 1.5svh, 1rem); color: #310527; }
+  .songs-bottom p { margin: 0; font-size: clamp(.7rem, .85vw, .85rem); }
+  .songs-actions { display: flex; align-items: center; gap: clamp(.75rem, 1.5vw, 1.5rem); }
+  .songs-actions button, .songs-actions a { font: inherit; font-size: clamp(.7rem, .85vw, .85rem); color: inherit; border: 0; border-bottom: 1px solid currentColor; background: none; padding: .5rem 0; text-decoration: none; cursor: pointer; }
+  .songs button:focus-visible, .songs a:focus-visible, .songs .scene:focus-visible { outline: 2px solid currentColor; outline-offset: 4px; }
+  .songs-status { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
   /* ---------- Dev-Anzeige ---------- */
   .hud {
@@ -941,7 +772,7 @@
     </div>
     <div class="navcol">
       <span class="navlabel">werke</span>
-      <a href="#">songs</a>
+      <a href="#songs">songs</a>
       <a href="#">musikvideos</a>
     </div>
     <div class="navcol">
@@ -1016,35 +847,19 @@
 </section>
 
 
-<!-- Bildebenen. Wie der Shop eine Laufstrecke mit klebendem Fenster, nur faehrt
-     der Scroll hier IN die Tiefe statt zur Seite.
-     Inhalt sind Rutgers Song-Cover, ein Cover je Ebene. Die Beschriftung ist
-     der Dateiname des Covers. Anzahl frei: die Laufstrecke rechnet resize()
-     aus planeEls.length. -->
-<section class="planes" id="planes" aria-label="Musik">
-  <div class="planes-sticky" id="planesSticky">
-   <div class="planes-head">
-      <h2>Musik<span class="planes-count">(13)</span></h2>
-    </div>
-   <div class="planes-stage">
-      <div class="planes-track" id="planesTrack">
-        <div class="plane"><img class="plane-image" src="covers/camcorder-rutger-feat-barre.webp" alt="Cover: Camcorder - Rutger feat. Barré" loading="lazy" draggable="false"><span class="plane-index">01 – Camcorder - Rutger feat. Barré</span></div>
-        <div class="plane"><img class="plane-image" src="covers/cover-polaroid.webp" alt="Cover: Cover - Polaroid" loading="lazy" draggable="false"><span class="plane-index">02 – Cover - Polaroid</span></div>
-        <div class="plane"><img class="plane-image" src="covers/freitag-auf-montag-freestyle-rutger.webp" alt="Cover: Freitag auf Montag Freestyle - Rutger" loading="lazy" draggable="false"><span class="plane-index">03 – Freitag auf Montag Freestyle - Rutger</span></div>
-        <div class="plane"><img class="plane-image" src="covers/hit-the-road-jack-rutger-dj-susi.webp" alt="Cover: Hit the Road Jack - Rutger &amp; DJ SUSI" loading="lazy" draggable="false"><span class="plane-index">04 – Hit the Road Jack - Rutger &amp; DJ SUSI</span></div>
-        <div class="plane"><img class="plane-image" src="covers/jukebox-rutger-jimbo.webp" alt="Cover: Jukebox - Rutger &amp; Jimbo" loading="lazy" draggable="false"><span class="plane-index">05 – Jukebox - Rutger &amp; Jimbo</span></div>
-        <div class="plane"><img class="plane-image" src="covers/ketchup-rutger.webp" alt="Cover: Ketchup - Rutger" loading="lazy" draggable="false"><span class="plane-index">06 – Ketchup - Rutger</span></div>
-        <div class="plane"><img class="plane-image" src="covers/lebenschmeckt-rutgercover7-2.webp" alt="Cover: LebenSchmeckt_RutgerCover7 2" loading="lazy" draggable="false"><span class="plane-index">07 – LebenSchmeckt_RutgerCover7 2</span></div>
-        <div class="plane"><img class="plane-image" src="covers/new-chapter-rutger-kahlert.webp" alt="Cover: New Chapter - Rutger &amp; KAHLERT" loading="lazy" draggable="false"><span class="plane-index">08 – New Chapter - Rutger &amp; KAHLERT</span></div>
-        <div class="plane"><img class="plane-image" src="covers/roll-rutger.webp" alt="Cover: ROLL - Rutger" loading="lazy" draggable="false"><span class="plane-index">09 – ROLL - Rutger</span></div>
-        <div class="plane"><img class="plane-image" src="covers/sundowner-rutger.webp" alt="Cover: Sundowner - Rutger" loading="lazy" draggable="false"><span class="plane-index">10 – Sundowner - Rutger</span></div>
-        <div class="plane"><img class="plane-image" src="covers/uhrzeit-final-cover.webp" alt="Cover: Uhrzeit Final Cover" loading="lazy" draggable="false"><span class="plane-index">11 – Uhrzeit Final Cover</span></div>
-        <div class="plane"><img class="plane-image" src="covers/ying-yang-rutger-dj-susi.webp" alt="Cover: YING YANG - Rutger &amp; DJ SUSI" loading="lazy" draggable="false"><span class="plane-index">12 – YING YANG - Rutger &amp; DJ SUSI</span></div>
-        <div class="plane"><img class="plane-image" src="covers/zick-zack-rutger-julez-kahlert.webp" alt="Cover: Zick Zack - Rutger, JuleZ &amp; KAHLERT" loading="lazy" draggable="false"><span class="plane-index">13 – Zick Zack - Rutger, JuleZ &amp; KAHLERT</span></div>
-      </div>
-    </div>
-   <div class="planes-hint">scrollen</div>
+<!-- A rigid sphere; duplicate artwork stays on opposite sides. -->
+<section class="songs" id="songs" data-song-sphere aria-label="Musik">
+  <div class="scene" tabindex="0" role="group" aria-label="Songcover-Kugel, mit Ziehen oder Pfeiltasten drehen" aria-describedby="songs-hint" data-lenis-prevent-touch>
+    <div class="world"><h2 class="title">Songs</h2></div>
   </div>
+  <div class="songs-bottom">
+    <p id="songs-hint">Ziehen zum Drehen</p>
+    <div class="songs-actions">
+      <button type="button" id="pause" aria-pressed="false">Pause</button>
+      <button type="button" id="reset">Zurücksetzen</button>
+    </div>
+  </div>
+  <p class="songs-status" id="status" role="status"></p>
 </section>
 
 <div class="hud" id="hud">–</div>
@@ -1058,6 +873,7 @@
      kein Storage, keine Cookies. Die sourceMappingURL-Zeile ist entfernt (die
      .map liegt nicht bei und wuerde in der Konsole einen 404 werfen). -->
 <script src="vendor/lenis.js"></script>
+<script src="_songs-sphere.js" defer></script>
 
 <script>
 (() => {
@@ -1123,114 +939,6 @@
   // gehetzt an; die Vorlage liegt mit 300vh auf 1720 px Fahrt bei rund 1,7.
   const PAN_PACE = 1.6;
 
-  // Bildebenen, nach examples.motion.dev/vue/scroll-velocity-linked-offset.
-  // Alle Laengen in Kachelbreiten (--plane-w), damit die Kette auf jeder
-  // Bildschirmgroesse dieselbe Form hat.
-  //
-  // Die Werte sind aus den BILDSCHIRMPOSITIONEN der Vorlage zurueckgerechnet,
-  // nicht aus ihren transform-Werten uebernommen. Im DOM steht dort ein
-  // Schritt von (0.75, -0.2625, -0.9) Kachelbreiten — nachgebaut ergibt das
-  // aber eine Kette mit Luecken, waehrend sich die Ebenen in der Vorlage stark
-  // ueberlappen. Zwischen transform und Bildschirm liegt dort also noch eine
-  // Skalierung. Gemessen wurden die Mitten der ersten sieben Ebenen; daraus
-  // Schrumpfung 0.91 je Schritt (-> Δz bei Perspektive 6.25 x Kachelbreite)
-  // und die beiden anderen Schritte. Nachgerechnet auf allen sieben: max. 4 px
-  // Abweichung.
-  const PL_STEP_X =  0.478;
-  const PL_STEP_Y = -0.434;
-  const PL_STEP_Z = -0.62;
-  const PL_TILT   = -50;    // Grad um die Hochachse
-  const PL_PACE   = 320;    // px Scrollweg je Ebene
-  // Stand der Kette, solange die Sektion noch nicht klebt — und weil sie
-  // waehrend der Anfahrt still steht (siehe plTarget), ist das genau der Stand,
-  // in dem man sie beim Herunterkommen vom Shop sieht.
-  // 0 heisst: Cover 01 steht auf dem Nullpunkt, gross und mittig, und die
-  // ganze Kette dahinter ist ausgefahren. Die Flaeche ist voll, ohne dass
-  // dafuer Cover verbraucht werden — von 0 an laeuft jedes einzelne noch
-  // seinen vollen Weg nach vorn. Bei 0.5 war Cover 01 schon halb hinaus,
-  // bei -1.4 stand die Kette klein und leer hinten rechts.
-  const PL_LEAD   =  0;
-  const PL_TAIL   =  1.4;
-  // Sichtbarer Ausschnitt der Kette. Nach vorn eng: bei -3 ist eine Ebene
-  // schon dreimal so gross wie im Nullpunkt und fuellt das Fenster; naeher
-  // wuerde sie durch die Kamera fahren. Nach hinten weit: dort ist alles
-  // klein und kostet nichts.
-  const PL_NEAR = -3.5, PL_FAR = 9;
-
-  // Fenster, in dem eine Ebene ihre Beschriftung traegt. Enger als der
-  // sichtbare Ausschnitt: der Name steht rechts neben der Kachel, und weiter
-  // hinten ist rechts kein Platz mehr.
-  // Nach vorn eng begrenzt: eine Ebene bei k = -1.5 ist schon so gross und so
-  // weit unten links, dass ihre Beschriftung unter den Bildrand rutscht
-  // (gemessen auf fast jeder Groesse). Nach hinten ebenfalls, sonst laeuft der
-  // laengste Name auf schmalen Geraeten rechts hinaus.
-  const PL_TAG_NEAR = -0.6, PL_TAG_FAR = 2.0;
-
-  // Kamerafahrt quer durch den Raum. Der Gedanke dahinter ist die Wegfuehrung
-  // der ganzen Seite: vom Intro geht es nach unten, durch den Shop nach rechts,
-  // und die Musik nimmt diesen Schwenk wieder zurueck — von rechts diagonal
-  // nach links unten, damit es danach geradeaus weitergehen kann. Das
-  // Abwaertsstueck der Diagonale bringt der Kettenfluss schon mit (die Ebenen
-  // laufen nach vorn unten aus); hier fehlt nur das Waagerechte.
-  //
-  // Die Kamera geht nach links, der Inhalt zieht also nach RECHTS. Das wirkt
-  // erst falsch herum und stand beim ersten Versuch auch falsch herum: die
-  // Kette laeuft von sich aus kraeftig nach links (gemessen: ihre Mitte wandert
-  // ueber die Sektion um 1,05 Fensterbreiten). Ein Schwenk nach links haette
-  // das nur beschleunigt — nach drei Vierteln der Sektion lagen die Cover
-  // ausserhalb des Bildes. Der Schwenk nach rechts faengt gut ein Drittel der
-  // Drift auf; was bleibt, ist die Diagonale nach links unten, aber eine, die
-  // im Bild bleibt.
-  //
-  // Je Endpunkt zwei Anteile, Fensterbreite UND Kachelbreite, weil beide
-  // Massstaebe gebraucht werden: der Abstand der Kette zu ihrem Anker haengt an
-  // der Kachelbreite, ihre Lage IM BILD an der Fensterbreite — und die beiden
-  // stehen nicht im festen Verhaeltnis (auf 1920 px passen 6 Kachelbreiten ins
-  // Fenster, auf 390 px nur 2,6). Mit nur einem der beiden Massstaebe klebt die
-  // Kette auf dem Handy beim Eintreffen am rechten Rand: gemessen Mitte bei
-  // 98 % der Fensterbreite statt bei 70 %.
-  // Ausgelegt auf: Kettenmitte beim Eintreffen bei rund 58 % der Fensterbreite,
-  // am Ende bei rund 40 %. Der Startpunkt lag zuerst bei 70 % — die Kette kam
-  // dann zwar sauber von rechts, aber man sah beim Hereinscrollen nur ihr
-  // Ende. Weiter zur Mitte hin ist beim Eintreffen mehr von ihr da.
-  // Fuer den Start beide Stuetzpunkte einzeln aufgeloest (1920/320 und
-  // 390/150), weil ein Verschieben in reinen Fensterbreiten auf dem Handy nur
-  // gut die Haelfte gebracht haette.
-  const PL_SWEEP_FROM_VW =  0.121, PL_SWEEP_FROM_PW = -1.574;
-  const PL_SWEEP_TO_VW   = -0.158, PL_SWEEP_TO_PW   =  0.702;
-
-  // --- Reaktion auf schnelles Scrollen ---------------------------------
-  // Die gedaempfte Fahrt hinkt dem Scroll hinterher; dieser Rueckstand IST
-  // das Tempo — steht der Scroll, ist er null. Aus ihm kommen beide Effekte,
-  // ohne dass irgendwo eine Zeit gemessen werden muss.
-  // PL_SURF_FULL: Rueckstand in Ebenen, ab dem der Effekt voll ausschlaegt.
-  // Gerechnet: bei DAMPING 0.085 und einem schnellen Wisch von ~90 px/Bild
-  // steht der Rueckstand bei 90/320/0.085 ≈ 3.3 Ebenen. 2.5 heisst also:
-  // gemuetliches Scrollen kaum, ein Wisch voll.
-  // Nachgezogen, als Lenis dazukam: weiches Scrollen glaettet die
-  // Scrollposition, damit springt das Ziel nicht mehr und der Spitzenrueckstand
-  // faellt. Gemessen mit demselben Wheel-Stoss (deltaY 900), mit dem die
-  // Vorlage kalibriert wurde: der Ausschlag lag nur noch bei 42 % des
-  // Sollwerts von 0.66 Kachelbreiten. 2.5 * 0.42 = 1.05.
-  // Wichtig: NICHT ueber DAMPING nachregeln — schnelleres Folgen verkleinert
-  // den Rueckstand, und der IST hier der Effekt. Das ginge in die falsche
-  // Richtung.
-  const PL_SURF_FULL = 1.05;
-
-  // Beide Werte an der Vorlage gemessen, nicht geschaetzt: ein kraeftiger
-  // Wheel-Stoss lenkt dort um bis zu 210 px aus, bei 320 px Kachelbreite also
-  // 0.66 Kachelbreiten. Die Auslenkung ueber die Kette abgetastet ergab eine
-  // saubere Sinuswelle mit Periode 13 Ebenen (2*pi/13 = 0.483 rad je Ebene) —
-  // auf ihrem Ring aus 26 Ebenen sind das genau zwei volle Wellen.
-  const PL_WAVE = 0.66;    // Wellenhoehe bei vollem Ausschlag, in Kachelbreiten
-  const PL_WAVE_K = 0.483; // Wellenlaenge: Phasensprung je Ebene, Radiant
-
-  // Die Vorlage dreht NICHT mit dem Tempo: rotateY steht bei allen Ebenen
-  // konstant auf -50 Grad, egal wie schnell gescrollt wird, und auch die Tiefe
-  // bleibt unberuehrt (gemessene Abweichung: 0 px). Tempo bewegt dort
-  // ausschliesslich y. Die Drehung, die hier vorher am Tempo hing, war meine
-  // Zutat — sie ist raus.
-
   // Sterne. Werte sind an einer 1920 breiten Bühne festgelegt und werden unten
   // mit der tatsächlichen Bildbreite heruntergerechnet. Sie sind jetzt der
   // Hintergrund des Shops, nicht mehr das Endbild der Intro.
@@ -1283,15 +991,6 @@
   const shopInner  = document.getElementById('shopInner');
   const gallery    = document.getElementById('gallery');
   const galleryVp  = document.getElementById('galleryViewport');
-  const planes       = document.getElementById('planes');
-  const planesSticky = document.getElementById('planesSticky');
-  const planesTrack  = document.getElementById('planesTrack');
-  const planeEls     = Array.from(planesTrack.children);
-  const planeTags    = planeEls.map(el => el.querySelector('.plane-index'));
-  // Gemessen in resize(), nicht je Bild aus --plane-w gelesen: getComputedStyle
-  // im rAF erzwingt jedes Bild ein Layout.
-  let planeW = 320, planeEased = PL_LEAD;   // ausgefahren, wie vor der Anfahrt
-
   // Weiches Scrollen. Bleibt null, wenn vendor/lenis.js nicht geladen hat oder
   // reduzierte Bewegung eingestellt ist — die Seite laeuft dann wie vorher,
   // nur ohne Glaettung. Eine fehlende Datei darf nicht die ganze Seite kippen.
@@ -1601,19 +1300,7 @@
       // der Seite mit nach oben.
       shop.style.height = (shopSticky.offsetHeight + panMax * PAN_PACE) + 'px';
 
-      // Laufstrecke der Bildebenen: je Ebene ein fester Scrollweg, plus
-      // Anlauf und Auslauf.
-      planes.style.height = (planesSticky.offsetHeight
-        + (planeEls.length + PL_TAIL - PL_LEAD) * PL_PACE) + 'px';
     }
-
-    // Auch bei reduzierter Bewegung noetig: die Kette steht dann still, aber
-    // sie steht in gemessenen Pixeln. offsetWidth statt --plane-w, weil die
-    // Variable in einem min()/clamp() steckt und nur der Browser das Ergebnis
-    // kennt. Nach der Messung neu verteilen, sonst haengt die Kette bis zum
-    // naechsten Bild an der alten Breite (bei reduce: fuer immer).
-    planeW = planeEls[0].offsetWidth;
-    if (reduce) layoutPlanes(1, 0);
 
     // Das Sternenfeld steht fest im Fenster (100lvh), nicht in einem Abschnitt.
     // Gemessen statt aus lvh gerechnet: nur der Browser weiss, wie gross sein
@@ -1627,69 +1314,6 @@
     skyField.draw(reduce ? 0 : performance.now() / 1000);
 
     draw(eased);
-  }
-
-  // Verteilt die Ebenen auf der Kette. `pos` ist die Position der Kamera in
-  // Ebenen (0 = die erste steht im Nullpunkt), `surf` das Tempo, -1..1.
-  // Getrennt von tick(), weil der Fall "reduzierte Bewegung" dieselbe
-  // Verteilung braucht, nur einmal und ohne Tempo.
-  const shown = [];
-  function layoutPlanes(pos, surf) {
-    shown.length = 0;
-    for (let i = 0; i < planeEls.length; i++) {
-      const el = planeEls[i];
-      const k = i - pos;               // Abstand dieser Ebene zur Kamera
-      if (k < PL_NEAR || k > PL_FAR) { el.style.opacity = '0'; continue; }
-      // Welle: laeuft mit der Fahrt durch die Kette, Hoehe am Tempo. Steht der
-      // Scroll, ist surf 0 und die Kette liegt wieder auf ihrer Geraden.
-      // Ohne pos-Term: die Welle steht relativ zur Kamera und schwingt an Ort
-      // und Stelle aus, sie laeuft nicht durch die Kette. In der Vorlage
-      // nachgemessen — ihr Nulldurchgang bleibt waehrend des ganzen Auslaufens
-      // bei k = -0.5 stehen, statt zu wandern.
-      const wave = Math.sin(k * PL_WAVE_K) * surf * PL_WAVE;
-      el.style.transform =
-        `translate3d(${(k * PL_STEP_X) * planeW}px,` +
-                    `${(k * PL_STEP_Y + wave) * planeW}px,` +
-                    `${(k * PL_STEP_Z) * planeW}px)` +
-        ` rotateY(${PL_TILT}deg)`;
-      // An beiden Enden ausblenden statt hart abschneiden: vorn ueber eine
-      // Ebene (dort ist die Kachel riesig und ein Schnitt faellt auf), hinten
-      // ueber zwei (dort ist sie klein und der Nebel darf laenger dauern).
-      el.style.opacity = String(Math.min(1, (PL_FAR - k) / 2, (k - PL_NEAR) / 1));
-
-      // Beschriftung nur nahe dem Nullpunkt. Weiter hinten steht die Kette so
-      // weit rechts, dass der Name aus dem Bild laeuft — gemessen auf allen
-      // Breiten von 320 bis 2560 ragten sonst 3 bis 7 Namen ueber den rechten
-      // Rand. Die Vorlage hat das Problem nicht: dort stehen nur zweistellige
-      // Nummern, die ueberall hinpassen.
-      planeTags[i].style.opacity =
-        String(clamp01(Math.min(PL_TAG_FAR - k, k - PL_TAG_NEAR)));
-      if (+planeTags[i].style.opacity > 0.01) shown.push(i);
-    }
-
-    // Die k-Grenzen allein reichen nicht: wo ein Name im Bild landet, haengt
-    // ausser an k auch am Schwenk, an der Fensterbreite und an der Laenge des
-    // Namens — drei Groessen, die sich nicht in eine feste Grenze fassen
-    // lassen. Zweimal habe ich versucht, das ueber die Schwenk-Konstanten
-    // auszupendeln; beide Male ging es auf einer Bildschirmgroesse gut und auf
-    // der anderen schief. Also nachsehen statt schaetzen: was ueber den Rand
-    // ragt, blendet aus, und zwar weich ueber die letzten 40 px, damit es kein
-    // Blinken gibt.
-    // Bezahlbar, weil das Sichtfenster PL_TAG_NEAR..PL_TAG_FAR nie mehr als
-    // drei Namen gleichzeitig zeigt und alle Transforms oben schon stehen —
-    // ein Layout-Durchlauf, kein Hin und Her.
-    for (const i of shown) {
-      const r = planeTags[i].getBoundingClientRect();
-      // 8 px Luft zum Rand, dann ueber 16 px ausgeblendet. Beides knapp
-      // gehalten: ein weiches 40-px-Fenster liess einen Namen mit 6 px
-      // Ueberstand noch mit 85 % Deckkraft stehen — sichtbar abgeschnitten ist
-      // schlimmer als weg.
-      const over = Math.max(r.right - (innerWidth - 8), 8 - r.left);
-      if (over > 0) {
-        planeTags[i].style.opacity =
-          String(+planeTags[i].style.opacity * clamp01(1 - over / 16));
-      }
-    }
   }
 
   function draw(t) {
@@ -1814,7 +1438,7 @@
     const ink = clamp01((fadeT - INK_FROM) / (INK_TO - INK_FROM));
     document.documentElement.style.setProperty('--nav-turn', ink.toFixed(3));
 
-    const pr = planes.getBoundingClientRect();
+
 
     // Der Shop faehrt auf, aber er geht nicht wieder ab: er scrollt nach oben
     // aus dem Bild wie jeder andere Inhalt auch. Ein Ausblenden waere zwar der
@@ -1846,54 +1470,6 @@
     // auf". Beide steigen auf 1 und fallen nicht wieder — dazwischen bleibt das
     // Feld stehen, statt am Abschnittswechsel abzublenden und neu aufzublenden.
     // Solange es unsichtbar ist, laeuft die Schleife nicht mit (Akku).
-    // Bildebenen: der Scrollweg unter dem klebenden Fenster wird zur Position
-    // der Kamera auf der Kette. Gleiche Daempfung wie Bildsequenz und
-    // Seitwaertsfahrt, damit sich die Seite durchgehend gleich anfuehlt.
-    // pr steht schon weiter oben (Abgang des Shops und Auffahrt der Kette).
-    const plRange = planes.offsetHeight - planesSticky.offsetHeight;
-    const plSpan  = planeEls.length + PL_TAIL - PL_LEAD;
-    // Die Kette laeuft AUSSCHLIESSLICH unter dem klebenden Fenster. Waehrend
-    // der Anfahrt steht sie auf PL_LEAD — ausgefahren, aber unbewegt.
-    //
-    // Das ist die Aufloesung eines Zielkonflikts, der drei Anlaeufe gekostet
-    // hat: eine volle Kette beim Herunterkommen und trotzdem jedes Cover in
-    // Ruhe sehen. Laesst man sie waehrend der Anfahrt schon laufen, fuellt sie
-    // sich zwar, aber sie zahlt dafuer mit den ersten Covern — die sind durch,
-    // bevor die Buehne ueberhaupt ganz im Fenster steht. Steht sie still, ist
-    // sie genauso voll, und der Katalog beginnt trotzdem bei Cover 01.
-    //
-    const plTarget = PL_LEAD + (plRange > 0 ? clamp01(-pr.top / plRange) : 0) * plSpan;
-    planeEased += (plTarget - planeEased) * DAMPING;
-    // Einrasten wie bei Bildsequenz und Seitwaertsfahrt. Hier zaehlt es
-    // doppelt: der Rueckstand IST der Effekt, und exponentielles Annaehern
-    // kommt nie an. Ohne Snap zittert die Kette nach dem Anhalten noch
-    // sekundenlang um Bruchteile eines Grades weiter, statt still zu stehen.
-    if (Math.abs(plTarget - planeEased) < 0.002) planeEased = plTarget;
-    // Der Rueckstand der Daempfung IST das Tempo. Gedeckelt auf -1..1, sonst
-    // klappt die Kette bei einem Wisch mit Schwung durch.
-    const surf = Math.max(-1, Math.min(1, (plTarget - planeEased) / PL_SURF_FULL));
-
-    // Der Schwenk. Ein Aufruf statt dreizehn — der ganze Anker wandert, die
-    // Ebenen haengen dran. Er beginnt erst, wenn die Sektion klebt
-    // (planeEased = PL_LEAD): waehrend die Cover hereinstroemen, steht die
-    // Kamera still. Ueber planeEased statt der rohen Scrollposition, damit sie
-    // mit derselben Daempfung zieht wie die Kette und nicht in einem eigenen
-    // Takt. VOR layoutPlanes, weil die Beschriftungen dort an ihrer
-    // endgueltigen Bildschirmposition geprueft werden.
-    // Der Schwenk laeuft mit der Kette, also erst unter dem klebenden Fenster.
-    // Ihn schon waehrend der Anfahrt anlaufen zu lassen war der naheliegende
-    // Gedanke — Bewegung, die keine Cover kostet —, ergab aber einen Buckel
-    // nach rechts (gemessen: Kettenmitte 0.60 -> 0.68 auf einem 390er Fenster),
-    // und damit einen Schlenker gegen die Richtung, um die es hier geht.
-    // Solange die Kette still im Raum haengt, steht auch die Kamera still.
-    const cam = clamp01((planeEased - PL_LEAD) / plSpan);
-    const swFrom = PL_SWEEP_FROM_VW * innerWidth + PL_SWEEP_FROM_PW * planeW;
-    const swTo   = PL_SWEEP_TO_VW   * innerWidth + PL_SWEEP_TO_PW   * planeW;
-    planesTrack.style.transform =
-      `translate3d(${swFrom + (swTo - swFrom) * cam}px,0,0)`;
-
-    layoutPlanes(planeEased, surf);
-
     const skyOn = Math.max(fadeT, p);
     sky.style.opacity = String(skyOn);
     if (skyOn > 0) skyField.draw(performance.now() / 1000);
@@ -1949,8 +1525,6 @@
     skyField.draw(0);                     // Sterne stehen still, keine Bahn, kein Drehen
     shopInner.style.transform = 'none';
     shopInner.style.opacity = '1';
-    // Die Kette bekommt keine Laufstrecke und steht still; verteilt hat sie
-    // resize() schon (sonst laege sie als Stapel aufeinander).
     // Die Galerie wird von Hand gewischt — Sichtfenster und Rand stellt der
     // prefers-reduced-motion-Block im CSS um, der Shop bekommt in resize()
     // gar keine Laufstrecke.
