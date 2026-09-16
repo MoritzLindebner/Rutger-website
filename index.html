@@ -477,9 +477,10 @@
 
   /* ---------- Shop ---------- */
 
-  /* Der Shop ist die Laufstrecke der Seitwaertsfahrt: so hoch, wie die Galerie
-     breit ueber den Rand hinausragt (1:1, gesetzt in resize()). Der Startwert
-     hier gilt, solange nicht gemessen ist. Kein eigener Hintergrund: #bgfx
+  /* Auf schmalen Fenstern ist der Shop die Laufstrecke der Seitwaertsfahrt: so
+     hoch, wie die Galerie breit ueber den Rand hinausragt (1:1, gesetzt in
+     resize()). Ab 1024 px faellt die Fahrt weg und es bleibt bei der Hoehe
+     hier — ein Fenster. Kein eigener Hintergrund: #bgfx
      liegt fest hinter der ganzen Seite und scheint durch. */
   .shop {
     position: relative;
@@ -624,6 +625,40 @@
     color: rgb(255 255 255 / .72);
   }
 
+  /* Ab Desktopbreite faehrt nichts mehr von rechts herein: alle vier Kacheln
+     stehen nebeneinander, sobald der Shop da ist. Der Platz ist vorhanden, und
+     der Preis der Fahrt war, dass man erst scrollen musste, um ueberhaupt zu
+     sehen, was es gibt. Die Fahrt bleibt schmalen Fenstern — dort waeren vier
+     Kacheln nebeneinander Briefmarken.
+     Geschrumpft wird von Flex selbst: die Kachel startet auf --card-w und gibt
+     so viel ab, wie die Zeile verlangt; die Hoehe folgt ueber aspect-ratio.
+     Die 1024 px stehen ein zweites Mal im Skript (SHOP_STATIC) — dort faellt
+     dieselbe Entscheidung fuer die Laufstrecke. Wer die eine aendert, aendert
+     die andere mit. */
+  @media (min-width: 1024px) {
+    .gallery-viewport {
+      padding-left:  clamp(1.25rem, 5vw, 5rem);
+      padding-right: clamp(1.25rem, 5vw, 5rem);
+    }
+    .gallery { justify-content: center; }
+    .gallery-item {
+      flex: 0 1 auto;
+      width: var(--card-w);
+      height: auto;
+      /* ponytail: auf einem kurzen Desktopfenster (gemessen 1440x620) deckelt
+         max-height die Hoehe, ohne die Breite mitzunehmen — die Kachel steht
+         dann bei 0,88 statt 4:5. Decke: rund 10 % Abweichung, unsichtbar bei
+         einem Hintergrund mit background-size: cover. Ausbauweg, falls echte
+         Produktfotos das zeigen: .gallery-viewport als Groessen-Container
+         (container-type: size) und die Breite zusaetzlich auf 0.8 * 100cqh
+         deckeln, dann treibt wieder die Hoehe. */
+      max-height: 100%;
+      /* Ohne das haelt die Inhaltsbreite (Titel, Preis) das Schrumpfen auf —
+         min-width: auto ist die Voreinstellung fuer Flex-Kinder. */
+      min-width: 0;
+    }
+  }
+
   /* ---------- Songs ---------- */
   .songs {
     position: relative;
@@ -668,7 +703,8 @@
     position: absolute;
     left: 0; top: 0;
     margin: 0;
-    color: #faf9f4;
+    /* Dasselbe Violett wie der Footer (--violet), nicht ein zweites daneben. */
+    color: var(--violet);
     font-weight: 900;
     font-size: calc(var(--diameter) * .225);
     line-height: 1.5;
@@ -1181,14 +1217,16 @@
   </div>
 </section>
 
-<!-- Weiterscrollen faehrt die Galerie seitwaerts durch: der Abschnitt ist die
-     Laufstrecke, .shop-sticky das stehende Fenster. -->
+<!-- Auf schmalen Fenstern faehrt die Galerie beim Weiterscrollen seitwaerts
+     durch: der Abschnitt ist die Laufstrecke, .shop-sticky das stehende
+     Fenster. Ab 1024 px stehen alle Kacheln nebeneinander und der Abschnitt
+     ist nur noch ein Fenster hoch. -->
 <section class="shop" id="shop">
   <div class="shop-sticky" id="shopSticky">
     <div class="shop-inner" id="shopInner">
       <div class="shop-head">
         <h2>Shop</h2>
-        <p>Platzhalter. Weiterscrollen fährt seitwärts durch die Artikel — später mit Größen, angebunden an Stripe Checkout.</p>
+        <p>Platzhalter. Später mit Größen, angebunden an Stripe Checkout.</p>
       </div>
       <div class="gallery-viewport" id="galleryViewport">
         <!-- Aufbau wie in der Vorlage: eine Kachel je Artikel, --item-color und
@@ -1506,6 +1544,11 @@
   // gehetzt an; die Vorlage liegt mit 300vh auf 1720 px Fahrt bei rund 1,7.
   const PAN_PACE = 1.6;
 
+  // Ab hier steht die Galerie still (siehe @media (min-width: 1024px) im CSS,
+  // dieselbe Zahl). Dann gibt es keine Seitwaertsfahrt, also auch keine
+  // Laufstrecke: der Shop ist schlicht ein Fenster hoch.
+  const SHOP_STATIC = '(min-width: 1024px)';
+
   // Sterne. Werte sind an einer 1920 breiten Bühne festgelegt und werden unten
   // mit der tatsächlichen Bildbreite heruntergerechnet. Sie sind jetzt der
   // Hintergrund des Shops, nicht mehr das Endbild der Intro.
@@ -1574,6 +1617,24 @@
   const frames = [];
   let loaded = 0, ready = false;
   let target = 0, eased = 0;
+  // Eine Schleife treibt die ganze Seite - und sie treibt auch Lenis, also ist
+  // jede Millisekunde darin unmittelbar Scrollgefuehl. Was gerade nicht zu
+  // sehen ist, wird deshalb auch nicht gerechnet: das Video hinter seinem
+  // fertigen Ausblenden, die Eventreihe ausserhalb des Fensters. Am Schreibtisch
+  // faellt der Leerlauf nicht auf, am Handy ist er der Unterschied zwischen
+  // einem Scroll, der der Hand folgt, und einem, der hinterherhinkt.
+  let fadeT = 0;                 // aus dem letzten Bild; 1 = Video unsichtbar
+  let evInView = true;           // gesetzt vom IntersectionObserver unten
+  let skyLast = -1e9;            // Zeitpunkt des letzten Sternenbildes
+  // Sterne: Sprite 15 fps, Drift ueber 16-42 s, Eigendrehung 0,04 rad/s. Bei
+  // 30 statt 60 Bildern je Sekunde ist da nichts zu sehen, aber die Haelfte der
+  // Zeichenarbeit weg - und das ist die groesste Flaeche auf der Seite.
+  const SKY_MS = 1000 / 30;
+  // Hoehen des Dokuments und des Footers. Einmal beim Resize gemessen statt in
+  // jedem Bild: scrollHeight und offsetHeight erzwingen ein Layout, und weil sie
+  // hier NACH den Stilschreibungen des Bildes standen, rechnete der Browser
+  // sechzig Mal in der Sekunde das ganze Layout neu.
+  let footH = 0, docRest = 0;
   let iw = 0, ih = 0;
   // Maße in CSS-Pixeln plus das dpr, mit dem der Puffer angelegt wurde. Nicht in
   // draw() neu auslesen — sonst driften Puffer und Anzeige auseinander, sobald
@@ -1828,9 +1889,10 @@
     // Laufstrecke der Galerie: erst die Ueberbreite messen, dann den Shop genau
     // so viel hoeher machen. Die Hoehe vorher zuruecksetzen, sonst misst die
     // zweite Messung die Strecke der ersten mit.
-    // Bei reduzierter Bewegung wischt der Nutzer die Galerie selbst — dann
+    // Bei reduzierter Bewegung wischt der Nutzer die Galerie selbst, ab
+    // Desktopbreite stehen alle Kacheln ohnehin nebeneinander — beide Male
     // bleibt der Shop fensterhoch und bekommt gar keine Strecke.
-    if (!reduce) {
+    if (!reduce && !matchMedia(SHOP_STATIC).matches) {
       const cards = gallery.children;
 
       // Zentrierender Rand aus der GEMESSENEN Kachelbreite. Nicht aus --card-w
@@ -1869,9 +1931,19 @@
       // der Seite mit nach oben.
       shop.style.height = (shopSticky.offsetHeight + panMax * PAN_PACE) + 'px';
 
+    } else {
+      // Zurueckstellen, nicht nur ueberspringen: beim Aufziehen des Fensters
+      // ueber 1024 px stuenden sonst die Laufstrecke und der zentrierende Rand
+      // der schmalen Ansicht noch da.
+      panMax = 0;
+      panEased = 0;
+      galleryVp.style.paddingLeft = '';   // der Rand kommt dann aus dem CSS
+      gallery.style.transform = '';
+      shop.style.height = '';             // = 100svh
     }
 
     evResize();
+    measureDoc();
 
 
     // Das Sternenfeld steht fest im Fenster (100lvh), nicht in einem Abschnitt.
@@ -2094,21 +2166,45 @@
   // sie von Hand nachbaut (preventDefault nur wenn |dx| > |dy|).
   if (!reduce) {
     let evDown = false, evBase = 0;
+    // Wem gehoert die Geste? Am Zeiger immer der Reihe (gescrollt wird mit dem
+    // Rad), am Finger entscheidet die erste Bewegung: 0 = noch offen,
+    // 1 = Reihe, -1 = der Browser scrollt, wir halten still.
+    let evAxis = 1, evX0 = 0, evY0 = 0;
+    const EV_SLOP = 8;   // px, bevor eine Richtung als gemeint gilt
     const evMult = () => matchMedia('(pointer: coarse)').matches ? 3.5 : 2;
 
     evReel.addEventListener('pointerdown', e => {
       evDown = true;
+      evX0 = e.clientX; evY0 = e.clientY;
+      evAxis = e.pointerType === 'touch' ? 0 : 1;
       evBase = evTarget + e.clientX * evMult();
       evReel.classList.add('is-drag');
       if (evReel.setPointerCapture) evReel.setPointerCapture(e.pointerId);
     });
     evReel.addEventListener('pointermove', e => {
       if (!evDown) return;
+      // touch-action: pan-y gibt die Senkrechte an den Browser, aber er schickt
+      // sein pointercancel erst, wenn er die Geste erkannt hat. Bis dahin kamen
+      // hier schon ein paar pointermove an, und die seitliche Unruhe eines
+      // senkrechten Wischers wurde mit 3,5 multipliziert auf die Reihe gelegt:
+      // die Reihe zuckte los und federte zurueck, waehrend die Seite anfing zu
+      // scrollen. Genau das war das Haengen am Handy. Also erst zusehen, wohin
+      // der Finger geht, dann bewegen.
+      if (evAxis === 0) {
+        const dx = e.clientX - evX0, dy = e.clientY - evY0;
+        if (Math.abs(dx) < EV_SLOP && Math.abs(dy) < EV_SLOP) return;
+        evAxis = Math.abs(dx) > Math.abs(dy) ? 1 : -1;
+        if (evAxis < 0) { evReel.classList.remove('is-drag'); return; }
+        // Neu ansetzen, sonst springt die Reihe um den Weg der Entscheidung.
+        evBase = evTarget + e.clientX * evMult();
+      }
+      if (evAxis < 0) return;
       evTarget = evBase - e.clientX * evMult();
     });
     const evUp = e => {
       if (!evDown) return;
       evDown = false;
+      evAxis = 1;
       evReel.classList.remove('is-drag');
       if (evReel.releasePointerCapture) evReel.releasePointerCapture(e.pointerId);
     };
@@ -2136,6 +2232,15 @@
       const j = Math.max(0, Math.min(evSlides.length - 1, i + (e.key === 'ArrowRight' ? 1 : -1)));
       evTarget = evSlides[j].left;
     });
+
+    // Ausserhalb des Fensters kostet evTick() fuenf transform-Schreibungen und
+    // ein komplett neu gezeichnetes Lineal je Bild, ohne dass jemand hinsieht.
+    // Der Rand von einer Fensterhoehe laesst die Daempfung schon anlaufen,
+    // bevor der Abschnitt hereinkommt.
+    new IntersectionObserver(
+      ([en]) => { evInView = en.isIntersecting; },
+      { rootMargin: '100% 0px' }
+    ).observe(evReel);
   }
 
   function draw(t) {
@@ -2208,6 +2313,13 @@
   }
 
   // ---- Scroll ----------------------------------------------------------
+  // Dokument- und Footerhoehe. Beide erzwingen beim Lesen ein Layout, deshalb
+  // nur hier und nicht in jedem Bild.
+  function measureDoc() {
+    footH   = footer.offsetHeight;
+    docRest = document.documentElement.scrollHeight - innerHeight - footH;
+  }
+
   function readScroll() {
     const rect = intro.getBoundingClientRect();
     const total = intro.offsetHeight - stage.offsetHeight;
@@ -2223,7 +2335,10 @@
     eased += (target - eased) * DAMPING;
     if (Math.abs(target - eased) < 0.0002) eased = target;
 
-    draw(eased);
+    // Ist das Video ganz ausgeblendet (fadeT aus dem letzten Bild), zeichnet
+    // draw() in ein Canvas mit opacity 0 - zwei formatfuellende drawImage plus
+    // die Fuellflaeche, jedes Bild, fuer nichts.
+    if (fadeT < 1) draw(eased);
     hint.style.opacity = String(Math.max(0, 1 - eased * 6));
 
     // Shop kommt von unten hoch, die Sterne blenden mit ihm auf. Das transform
@@ -2246,7 +2361,7 @@
     // Video steht, zeichnet sich seine Unterkante ab. Der Uebergang laeuft ueber
     // die letzte halbe Fensterhoehe davor.
     const shopFade = clamp01((innerHeight * 1.5 - r.top) / (innerHeight * 0.5));
-    const fadeT = Math.max(clamp01((eased - FADE_START) / (1 - FADE_START)), shopFade);
+    fadeT = Math.max(clamp01((eased - FADE_START) / (1 - FADE_START)), shopFade);
     canvas.style.opacity = String(1 - fadeT);
     fill.style.opacity   = String(1 - fadeT);   // Fuellflaeche geht mit
     // Der dunkle Grund hinter dem Band haengt an derselben Zahl (siehe
@@ -2283,9 +2398,13 @@
     // gleich anfuehlt.
     const panRange  = panMax * PAN_PACE;
     const panTarget = panRange > 0 ? clamp01(-r.top / panRange) * panMax : 0;
-    panEased += (panTarget - panEased) * DAMPING;
-    if (Math.abs(panTarget - panEased) < 0.05) panEased = panTarget;
-    gallery.style.transform = `translate3d(${-panEased}px,0,0)`;
+    // Ohne Laufstrecke (Desktop, reduzierte Bewegung) steht die Galerie — dann
+    // auch kein transform je Bild. resize() hat es dort schon geleert.
+    if (panMax > 0) {
+      panEased += (panTarget - panEased) * DAMPING;
+      if (Math.abs(panTarget - panEased) < 0.05) panEased = panTarget;
+      gallery.style.transform = `translate3d(${-panEased}px,0,0)`;
+    }
 
     // Das Feld steht jetzt hinter der ganzen Seite, also gibt es nur noch EINE
     // Deckkraft: das Groessere aus "Video ist ausgeblendet" und "Shop faehrt
@@ -2297,8 +2416,8 @@
     // Ueber diese eine Footerhoehe blendet er auf — getBoundingClientRect
     // hilft hier nicht, ein geklebter Kasten meldet die geklebte Lage, nicht
     // die natuerliche.
-    const fh   = footer.offsetHeight;
-    const rest = document.documentElement.scrollHeight - innerHeight - fh;
+    const fh   = footH;
+    const rest = docRest;
     const rev  = fh > 0 ? clamp01((scrollY - rest) / fh) : 0;
     // Die Kante. Sie steht bei rev=0 auf der Unterkante des Fensters und
     // wandert um die volle Footerhoehe hoch — genau der Weg, den der deckende
@@ -2310,11 +2429,14 @@
     footerScale.style.filter    = `blur(${(6 * (1 - rev)).toFixed(2)}px)`;
     footerScale.style.transform = `scale(${(0.9 + 0.1 * rev).toFixed(4)})`;
 
-    evTick();
+    if (evInView) evTick();
 
     const skyOn = Math.max(fadeT, p);
     sky.style.opacity = String(skyOn);
-    if (skyOn > 0) skyField.draw(performance.now() / 1000);
+    if (skyOn > 0 && time - skyLast >= SKY_MS) {
+      skyLast = time;
+      skyField.draw(time / 1000);
+    }
 
     requestAnimationFrame(tick);
   }
@@ -2325,6 +2447,12 @@
   // Auf dem Band, nicht auf der Buehne: aendert sich das Fenster, aendert sich
   // beides — aendert sich nur --sicht, nur dieses.
   new ResizeObserver(() => { resize(); readScroll(); }).observe(band);
+  // Das Wurzelelement getrennt und nur mit measureDoc(): seine Hoehe IST die
+  // Dokumenthoehe, und die aendert sich auch ohne Fensteraenderung - beim
+  // Nachladen der Schrift etwa. Ein volles resize() waere hier falsch: es setzt
+  // selbst die Shophoehe und loeste sich damit gleich wieder aus, und es
+  // wuerde die teure Sternenplatzierung ein zweites Mal rechnen.
+  new ResizeObserver(measureDoc).observe(document.documentElement);
   addEventListener('keydown', e => { if (e.key === 'h') hud.classList.toggle('off'); });
 
   // ---- Ausklappmenue ----------------------------------------------------
