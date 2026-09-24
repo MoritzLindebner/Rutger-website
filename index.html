@@ -703,8 +703,12 @@
     position: absolute;
     left: 0; top: 0;
     margin: 0;
-    /* Dasselbe Violett wie der Footer (--violet), nicht ein zweites daneben. */
-    color: var(--violet);
+    transform-style: preserve-3d;
+    color: #c48bdd;
+    background: linear-gradient(155deg, #f3d9ff 2%, #d29ce7 22%, #b76cd9 50%, #8e3dbb 75%, #e2baf4 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
     font-weight: 900;
     font-size: calc(var(--diameter) * .225);
     line-height: 1.5;
@@ -712,6 +716,35 @@
     white-space: nowrap;
     pointer-events: none;
     backface-visibility: visible;
+    -webkit-text-stroke: .012em #2a0738;
+    paint-order: stroke fill;
+  }
+  .songs .title::before,
+  .songs .title::after {
+    content: attr(data-text);
+    position: absolute;
+    inset: 0;
+    backface-visibility: hidden;
+  }
+  .songs .title::before {
+    color: #21042f;
+    -webkit-text-fill-color: #21042f;
+    transform: translateZ(calc(var(--diameter) * -.09));
+  }
+  .songs .title::after {
+    color: #7d329f;
+    -webkit-text-fill-color: #7d329f;
+    transform: translateZ(calc(var(--diameter) * -.045));
+  }
+  .songs .title-glint {
+    position: absolute;
+    inset: 0;
+    color: #d9a6ed;
+    background: none;
+    -webkit-text-fill-color: transparent;
+    -webkit-text-stroke: .025em #b76cd9;
+    filter: drop-shadow(0 0 .035em #e9c7f6);
+    transform: translateZ(calc(var(--diameter) * .129));
   }
   .songs-bottom { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem 1rem; padding-top: clamp(.5rem, 1.5svh, 1rem); color: #310527; }
   .songs-bottom p { margin: 0; font-size: clamp(.7rem, .85vw, .85rem); }
@@ -1257,7 +1290,7 @@
 <!-- A rigid sphere; duplicate artwork stays on opposite sides. -->
 <section class="songs" id="songs" data-song-sphere aria-label="Musik">
   <div class="scene" tabindex="0" role="group" aria-label="Songcover-Kugel, mit Ziehen oder Pfeiltasten drehen" aria-describedby="songs-hint" data-lenis-prevent-touch>
-    <div class="world"><h2 class="title">Songs</h2></div>
+    <div class="world"><h2 class="title" data-text="Songs" aria-label="Songs">Songs<span class="title-glint" aria-hidden="true">Songs</span></h2></div>
   </div>
   <div class="songs-bottom">
     <p id="songs-hint">Ziehen zum Drehen</p>

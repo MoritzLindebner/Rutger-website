@@ -133,8 +133,11 @@
 
   function render() {
     world.style.transform = `rotateX(${rotation.x}deg) rotateY(${rotation.y}deg) rotateZ(${roll}deg)`;
-    // Match the reference: cancel X/Y, but retain the world's slow Z roll.
-    title.style.transform = `translate(-50%, -50%) rotateY(${-rotation.y}deg) rotateX(${-rotation.x}deg)`;
+    // Keep the title inside the sphere, with bounded tilts so it cannot flip.
+    const tiltY = 12 + Math.sin(rotation.y * Math.PI / 180) * 12;
+    const tiltX = -6 + Math.sin(rotation.x * Math.PI / 180) * 6;
+    const tiltZ = Math.sin(roll * Math.PI / 180) * 8;
+    title.style.transform = `translate(-50%, -50%) rotateZ(${-roll}deg) rotateY(${-rotation.y}deg) rotateX(${-rotation.x}deg) translateZ(${geometry.radius * .7}px) rotateZ(${tiltZ}deg) rotateY(${tiltY}deg) rotateX(${tiltX}deg)`;
   }
 
   function scheduleDragRender() {

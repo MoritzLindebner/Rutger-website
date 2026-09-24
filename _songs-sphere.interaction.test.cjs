@@ -64,24 +64,39 @@ test('one-finger gestures on the scene suppress native touch scrolling', () => {
   }
 });
 
-test('center text retains the reference roll through dragging, pause and reset', () => {
+test('center text follows the sphere without flipping through dragging, pause and reset', () => {
   const page = pageHarness(false, true);
   page.flush(100);
   page.flush(140);
   const roll = () => Number(page.element('.world').style.transform.match(/rotateZ\(([-\d.]+)deg\)/)[1]);
+  const titleAngles = () => [...page.element('.title').style.transform.matchAll(/rotate[ZYX]\(([-\d.]+)deg\)/g)].map(match => Number(match[1]));
+  const readable = () => {
+    const [inverseZ, inverseY, inverseX, z, y, x] = titleAngles();
+    const worldAngles = [...page.element('.world').style.transform.matchAll(/rotate[XYZ]\(([-\d.]+)deg\)/g)].map(match => Number(match[1]));
+    assert.ok([inverseX, inverseY, inverseZ].every((angle, index) => Math.abs(angle + worldAngles[index]) < 1e-9));
+    assert.ok(Math.abs(z) <= 8 && y >= 0 && y <= 24 && x >= -12 && x <= 0);
+  };
   assert.ok(Math.abs(roll() - 5 * .62 * .04) < 1e-10);
-  assert.ok(!page.element('.title').style.transform.includes('rotateZ'), 'title must not cancel the world roll');
+  readable();
+  assert.ok(page.element('.world').children.every(card => !card.style.opacity), 'covers remain opaque');
   const before = roll();
+  const beforeTitle = titleAngles();
   page.pointer('pointerdown', 1);
   page.pointer('pointermove', 1, 200, 170);
   page.flush(180);
   assert.equal(roll(), before, 'dragging retains the current roll');
+  assert.notDeepEqual(titleAngles(), beforeTitle, 'the word follows the drag');
+  readable();
   page.pointer('pointerup', 1);
   page.fire('#pause', 'click');
   page.flush(220);
   assert.equal(roll(), before, 'pause stops the roll');
+  for (let i = 0; i < 20; i++) page.fire('.scene', 'keydown', { key: 'ArrowRight' });
+  readable();
   page.fire('#reset', 'click');
   assert.equal(roll(), 0);
+  assert.equal(titleAngles()[3], 0);
+  readable();
 });
 
 test('cancelled gestures release capture and allow the next swipe', () => {
