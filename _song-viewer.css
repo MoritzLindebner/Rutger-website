@@ -1,0 +1,112 @@
+html:has(.song-viewer[open]) { overflow: hidden; }
+html:has(.song-viewer[open]) body { overflow-x: clip; }
+.song-viewer {
+  --thumb: clamp(3rem, 6vw, 6rem);
+  --edge: clamp(1rem, 3vw, 3rem);
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  max-width: none;
+  height: 100svh;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: #0e0b10;
+  color: #f3eef8;
+  overscroll-behavior: contain;
+}
+.song-viewer[open] { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; }
+.song-viewer::backdrop { background: #0e0b10; }
+.song-viewer button, .song-viewer a { color: inherit; font: inherit; }
+.song-viewer button { cursor: pointer; }
+.song-viewer :focus-visible { outline: 2px solid #e2b3ff; outline-offset: 4px; }
+.song-viewer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: clamp(1rem, 3vw, 3rem);
+  padding: clamp(.65rem, 2svh, 1.5rem) var(--edge);
+}
+.song-viewer-brand { font-family: 'Metal Mania', fantasy; font-size: clamp(1.6rem, 3vw, 3rem); }
+.song-viewer-close {
+  border: 0;
+  border-bottom: 1px solid #a297ae;
+  background: none;
+  padding: clamp(.6rem, 1vw, .85rem) 0;
+  font-size: clamp(.75rem, 1vw, .95rem) !important;
+}
+.song-viewer-main {
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: clamp(.6rem, 2svh, 1.5rem);
+  padding: clamp(.5rem, 1svh, 1rem) var(--edge) clamp(.75rem, 2svh, 1.5rem);
+}
+.song-viewer-media { min-width: 0; min-height: 0; display: grid; place-items: center; }
+.song-viewer-screen { position: relative; width: 100%; height: 100%; min-height: 0; max-width: 100rem; display: grid; place-items: center; }
+.song-viewer-screen > img { width: 100%; height: 100%; min-height: 0; object-fit: contain; }
+.song-viewer-screen iframe { width: 100%; height: 100%; border: 0; background: #000; }
+.song-viewer-screen .song-viewer-preview { position: absolute; inset: 0; pointer-events: none; opacity: 0; }
+.song-viewer-screen .song-viewer-preview[data-ready='true'] { opacity: 1; }
+.song-viewer-play {
+  position: absolute;
+  inset: auto;
+  display: grid;
+  place-items: center;
+  width: clamp(3rem, 5vw, 4.5rem);
+  aspect-ratio: 1;
+  padding: 0;
+  border: 1px solid #f3eef8;
+  border-radius: 50%;
+  background: transparent;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, .8), 0 1px 8px #000;
+  font-size: clamp(1.3rem, 2vw, 1.9rem) !important;
+  text-shadow: 0 0 2px #000, 0 1px 6px #000;
+}
+.song-viewer-play span { transform: translateX(.08em); }
+.song-viewer-info { display: flex; justify-content: space-between; align-items: end; gap: clamp(.8rem, 2vw, 2rem); width: min(100%, 100rem); margin: auto; }
+.song-viewer-info > div { min-width: 0; }
+.song-viewer-eyebrow { margin: 0 0 .35em; font-family: var(--font-nav, monospace); font-size: clamp(.6rem, .8vw, .8rem); letter-spacing: .12em; color: #c7a5df; }
+.song-viewer-title { margin: 0; font-size: clamp(1.2rem, 3vw, 3rem); line-height: 1.05; text-transform: uppercase; overflow-wrap: anywhere; }
+.song-viewer-external { flex-shrink: 0; font-size: clamp(.65rem, .85vw, .85rem) !important; text-underline-offset: .3em; }
+.song-viewer-external[hidden] { display: none; }
+.song-viewer-footer { min-width: 0; padding-bottom: max(.5rem, env(safe-area-inset-bottom)); }
+.song-viewer-strip {
+  display: flex;
+  align-items: center;
+  gap: clamp(.3rem, .5vw, .5rem);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #6c4d80 transparent;
+  padding: clamp(.6rem, 1.5svh, 1rem) max(var(--edge), calc((100% - var(--thumb) * 1.4) / 2));
+}
+.song-viewer-thumb {
+  flex: 0 0 auto;
+  width: var(--thumb);
+  height: var(--thumb);
+  padding: clamp(.2rem, .4vw, .35rem);
+  border: 2px solid transparent;
+  background: #f3eef8;
+  opacity: .5;
+  transition: opacity .2s, border-color .2s;
+}
+.song-viewer-thumb:hover { opacity: 1; }
+.song-viewer-thumb[aria-current='true'] { width: calc(var(--thumb) * 1.4); height: calc(var(--thumb) * 1.4); border-color: #d8a1ff; opacity: 1; box-shadow: 0 0 0 2px #a939ef; }
+.song-viewer-thumb img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.song-viewer-paging { display: flex; justify-content: space-between; align-items: center; padding: 0 var(--edge); gap: clamp(.5rem, 2vw, 2rem); font-family: var(--font-nav, monospace); font-size: clamp(.65rem, .8vw, .8rem); }
+.song-viewer-paging button { background: none; border: 0; padding: clamp(.65rem, 1svh, .9rem) 0; }
+.song-viewer-count { color: #c7bdcf; }
+@media (max-height: 450px) and (min-width: 600px) {
+  .song-viewer { --thumb: clamp(2.4rem, 7svh, 3rem); }
+  .song-viewer-main { grid-template-columns: minmax(0, 3fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
+  .song-viewer-info { display: block; margin: auto 0; }
+  .song-viewer-title { font-size: clamp(1rem, 2.6vw, 1.8rem); }
+  .song-viewer-external { display: inline-block; margin-top: 1rem; }
+  .song-viewer-header { padding-block: .35rem; }
+  .song-viewer-strip { padding-block: .4rem; }
+}
+@media (prefers-reduced-motion: reduce) { .song-viewer-thumb { transition: none; } }

@@ -6,19 +6,19 @@
   'use strict';
 
   const covers = [
-    ['camcorder-rutger-feat-barre.webp', 'Camcorder'],
-    ['cover-polaroid.webp', 'Polaroid'],
-    ['freitag-auf-montag-freestyle-rutger.webp', 'Freitag auf Montag Freestyle'],
-    ['hit-the-road-jack-rutger-dj-susi.webp', 'Hit the Road Jack'],
-    ['jukebox-rutger-jimbo.webp', 'Jukebox'],
-    ['ketchup-rutger.webp', 'Ketchup'],
-    ['lebenschmeckt-rutgercover7-2.webp', 'Leben schmeckt'],
-    ['new-chapter-rutger-kahlert.webp', 'New Chapter'],
-    ['roll-rutger.webp', 'Roll'],
-    ['sundowner-rutger.webp', 'Sundowner'],
-    ['uhrzeit-final-cover.webp', 'Uhrzeit'],
-    ['ying-yang-rutger-dj-susi.webp', 'Ying Yang'],
-    ['zick-zack-rutger-julez-kahlert.webp', 'Zick Zack'],
+    ['camcorder-rutger-feat-barre.webp', 'Camcorder', 'SMIw6uyCj1o'],
+    ['cover-polaroid.webp', 'Polaroid', null, 'atiBaTDbJbA'],
+    ['freitag-auf-montag-freestyle-rutger.webp', 'Freitag auf Montag Freestyle', 'l1f0stpdWjE'],
+    ['hit-the-road-jack-rutger-dj-susi.webp', 'Hit the Road Jack', 'GAOfcdUSgdA'],
+    ['jukebox-rutger-jimbo.webp', 'Jukebox', null, 'uR0LXVolFow'],
+    ['ketchup-rutger.webp', 'Ketchup', '_9zo9Lmf6hg'],
+    ['lebenschmeckt-rutgercover7-2.webp', 'Leben schmeckt', 'QffAAuoOTNM'],
+    ['new-chapter-rutger-kahlert.webp', 'New Chapter', 'mODi4s2GGNU'],
+    ['roll-rutger.webp', 'Roll', '6npK3I6hPRk'],
+    ['sundowner-rutger.webp', 'Sundowner', null, 'qpbc925Rkx8'],
+    ['uhrzeit-final-cover.webp', 'Uhrzeit', 'YnWFptA2wKI'],
+    ['ying-yang-rutger-dj-susi.webp', 'Ying Yang', null, 'VDq1D2CzEI4'],
+    ['zick-zack-rutger-julez-kahlert.webp', 'Zick Zack', null, 'hGt_hqQP-q4'],
   ];
 
   const pointCache = new Map();
@@ -161,9 +161,18 @@
     profile().count = count;
     world.querySelectorAll('.cover').forEach(card => card.remove());
     for (let index = 0; index < count; index++) {
-      const [file, name] = covers[index % covers.length];
-      const card = document.createElement('div');
+      const [file, name, video, audio] = covers[index % covers.length];
+      const card = document.createElement(site ? 'a' : 'div');
       card.className = 'cover';
+      if (site) {
+        card.dataset.song = file.replace(/\.webp$/, '');
+        card.dataset.title = name;
+        if (video) card.dataset.video = video;
+        if (audio) card.dataset.audio = audio;
+        card.href = `?song=${card.dataset.song}#songs`;
+        card.setAttribute('aria-label', `${name} öffnen`);
+        if (index >= covers.length) card.tabIndex = -1;
+      }
       const image = document.createElement('img');
       image.src = `covers/${file}`;
       image.alt = name;
@@ -232,7 +241,9 @@
   scene.addEventListener('pointerdown', event => {
     if (!event.isPrimary || event.button !== 0 || pointer) return;
     scene.setPointerCapture(event.pointerId);
-    pointer = { id: event.pointerId, x: event.clientX, y: event.clientY, time: event.timeStamp };
+    pointer = { id: event.pointerId, x: event.clientX, y: event.clientY, time: event.timeStamp,
+      startX: event.clientX, startY: event.clientY, dragged: false,
+      link: site ? event.target.closest?.('a.cover') : null };
     velocity = { x: 0, y: 0 };
     scene.classList.add('dragging');
     cancelAnimationFrame(animation);
@@ -257,20 +268,29 @@
     rotation = rotate(rotation.x, rotation.y, dx, dy, geometry.diameter);
     velocity.x = Math.max(-100, Math.min(100, velocity.x * .65 - dy * sensitivity / dt * .35));
     velocity.y = Math.max(-100, Math.min(100, velocity.y * .65 + dx * sensitivity / dt * .35));
-    pointer = { id: event.pointerId, x: event.clientX, y: event.clientY, time: event.timeStamp };
+    pointer = { ...pointer, x: event.clientX, y: event.clientY, time: event.timeStamp,
+      dragged: pointer.dragged || Math.hypot(event.clientX - pointer.startX, event.clientY - pointer.startY) > 7 };
     scheduleDragRender();
   });
 
   function release(event) {
     if (!pointer || pointer.id !== event.pointerId) return;
+    const link = event.type === 'pointerup' && !pointer.dragged
+      && Math.hypot(event.clientX - pointer.startX, event.clientY - pointer.startY) <= 7 ? pointer.link : null;
     if (event.type !== 'pointerup' || event.timeStamp - pointer.time > 100 || reducedMotion.matches) velocity = { x: 0, y: 0 };
     pointer = null;
     scene.classList.remove('dragging');
     if (scene.hasPointerCapture(event.pointerId)) scene.releasePointerCapture(event.pointerId);
     previousTime = 0;
     wake();
+    if (link) link.click();
   }
   ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(type => scene.addEventListener(type, release));
+  // Pointer capture and touch prevention suppress native link activation.
+  // Release activates taps once; keyboard clicks keep their native behavior.
+  scene.addEventListener('click', event => {
+    if (site && event.detail > 0) { event.preventDefault(); event.stopPropagation(); }
+  });
 
   function cancelDrag() {
     if (pointer) release({ pointerId: pointer.id, type: 'pointercancel' });

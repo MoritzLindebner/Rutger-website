@@ -1,3 +1,5 @@
 # GitHub Pages otherwise omits underscore-prefixed runtime assets.
 include:
   - _songs-sphere.js
+  - _song-viewer.js
+  - _song-viewer.css

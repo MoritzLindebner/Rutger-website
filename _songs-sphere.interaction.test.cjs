@@ -64,6 +64,32 @@ test('one-finger gestures on the scene suppress native touch scrolling', () => {
   }
 });
 
+test('tapping an embedded cover activates its link exactly once', () => {
+  const page = pageHarness(true, true);
+  let activations = 0;
+  page.element('.scene').closest = () => ({ click() { activations++; } });
+  page.pointer('pointerdown', 1);
+  page.pointer('pointerup', 1, 103, 102);
+  assert.equal(activations, 1);
+  const nativeClick = page.fire('.scene', 'click', { detail: 1 });
+  assert.ok(nativeClick.defaultPrevented, 'the follow-up native click must not open the link twice');
+  assert.ok(!page.fire('.scene', 'click', { detail: 0 }).defaultPrevented, 'keyboard activation stays available');
+});
+
+test('dragging back to the starting point or cancelling never opens a cover', () => {
+  const page = pageHarness(true, true);
+  let activations = 0;
+  page.element('.scene').closest = () => ({ click() { activations++; } });
+  page.pointer('pointerdown', 1);
+  page.pointer('pointermove', 1, 160, 100);
+  page.pointer('pointermove', 1, 100, 100);
+  page.pointer('pointerup', 1);
+  page.pointer('pointerdown', 2);
+  page.pointer('pointercancel', 2);
+  assert.equal(activations, 0);
+  assert.ok(!page.element('.scene').hasPointerCapture(2));
+});
+
 test('center text follows the sphere without flipping through dragging, pause and reset', () => {
   const page = pageHarness(false, true);
   page.flush(100);
